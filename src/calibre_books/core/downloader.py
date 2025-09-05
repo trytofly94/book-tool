@@ -10,10 +10,13 @@ import subprocess
 import os
 import concurrent.futures
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
 
 from ..utils.logging import LoggerMixin
 from .book import Book, ConversionResult
+
+if TYPE_CHECKING:
+    from ..config.manager import ConfigManager
 
 
 class KFXConverter(LoggerMixin):
@@ -23,16 +26,31 @@ class KFXConverter(LoggerMixin):
     Integrates the existing parallel_kfx_converter.py logic into the CLI tool.
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config_manager: 'ConfigManager'):
         """
         Initialize KFX converter.
         
         Args:
-            config: Conversion configuration dictionary
+            config_manager: Configuration manager instance
         """
         super().__init__()
-        self.config = config
-        self.max_workers = config.get('max_workers', 4)
+        self.config_manager = config_manager
+        
+        # Get conversion-specific configuration with error handling
+        try:
+            conversion_config = config_manager.get_conversion_config()
+            self.max_workers = conversion_config.get('max_workers', 4)
+            self.logger.debug(f"Initialized KFX converter with max_workers: {self.max_workers}")
+        except Exception as e:
+            self.logger.warning(f"Failed to load conversion config, using defaults: {e}")
+            self.max_workers = 4
+        
+        # Store other config sections for use by converter methods
+        try:
+            self.calibre_config = config_manager.get_calibre_config()
+        except Exception as e:
+            self.logger.warning(f"Failed to load Calibre config, using defaults: {e}")
+            self.calibre_config = {}
         
         # Import existing parallel KFX converter
         try:
