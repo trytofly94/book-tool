@@ -37,13 +37,18 @@ class TestASINValidation:
             'B00ZVA3XL',      # Too short
             'B00ZVA3XL67',    # Too long  
             'B00ZVA3XL!',     # Invalid character
-            'b00zva3xl6',     # Lowercase (should be converted)
             None,
             123,
         ]
         
         for asin in invalid_asins:
             assert not validate_asin(asin), f"ASIN {asin} should be invalid"
+            
+    def test_case_insensitive_asin(self):
+        """Test that ASINs are case-insensitive."""
+        assert validate_asin('b00zva3xl6'), "Lowercase ASIN should be valid"
+        assert validate_asin('B00ZVA3XL6'), "Uppercase ASIN should be valid"
+        assert validate_asin('b00ZvA3xL6'), "Mixed case ASIN should be valid"
 
 
 class TestISBNValidation:
@@ -52,10 +57,10 @@ class TestISBNValidation:
     def test_valid_isbn10(self):
         """Test valid ISBN-10 formats."""
         valid_isbns = [
-            '0123456789',
-            '012345678X',
-            '0-12-345678-9',
-            '0 12 345678 9',
+            '0486419738',     # Real ISBN-10 with valid checksum
+            '020161622X',     # Real ISBN-10 ending with X
+            '0-486-41973-8',  # With dashes
+            '0 486 41973 8',  # With spaces
         ]
         
         for isbn in valid_isbns:
@@ -66,9 +71,9 @@ class TestISBNValidation:
     def test_valid_isbn13(self):
         """Test valid ISBN-13 formats."""
         valid_isbns = [
-            '9780123456786',
-            '978-0-12-345678-6',
-            '978 0 12 345678 6',
+            '9780486419732',     # Real ISBN-13 with valid checksum
+            '978-0-486-41973-2', # With dashes
+            '978 0 486 41973 2', # With spaces
         ]
         
         for isbn in valid_isbns:

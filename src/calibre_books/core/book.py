@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BookFormat(Enum):
@@ -64,16 +64,17 @@ class BookMetadata(BaseModel):
     file_size: Optional[int] = Field(None, ge=0, description="File size in bytes")
     format: Optional[BookFormat] = Field(None, description="Book format")
     
-    @validator('authors', pre=True)
-    def ensure_authors_list(cls, v, values):
+    @model_validator(mode='after')
+    def ensure_authors_list(self):
         """Ensure authors list includes the primary author."""
-        if isinstance(v, str):
-            v = [v]
-        if 'author' in values and values['author'] not in v:
-            v.insert(0, values['author'])
-        return v
+        if not self.authors:
+            self.authors = [self.author]
+        elif self.author not in self.authors:
+            self.authors.insert(0, self.author)
+        return self
     
-    @validator('asin')
+    @field_validator('asin')
+    @classmethod
     def validate_asin_format(cls, v):
         """Validate ASIN format if provided."""
         if v is not None:
@@ -82,7 +83,8 @@ class BookMetadata(BaseModel):
                 raise ValueError("Invalid ASIN format")
         return v
     
-    @validator('isbn')
+    @field_validator('isbn')
+    @classmethod
     def validate_isbn_format(cls, v):
         """Validate ISBN format if provided."""
         if v is not None:

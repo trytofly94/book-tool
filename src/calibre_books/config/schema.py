@@ -8,7 +8,7 @@ functionality for configuration files.
 from typing import Dict, Any, List
 from pathlib import Path
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class DownloadConfig(BaseModel):
@@ -17,7 +17,8 @@ class DownloadConfig(BaseModel):
     download_path: str = Field(default="~/Downloads/Books", description="Download directory")
     librarian_path: str = Field(default="librarian", description="Path to librarian CLI")
     
-    @validator('default_format')
+    @field_validator('default_format')
+    @classmethod
     def validate_format(cls, v):
         valid_formats = {'mobi', 'epub', 'pdf', 'azw3'}
         if v.lower() not in valid_formats:
@@ -30,7 +31,8 @@ class CalibreConfig(BaseModel):
     library_path: str = Field(default="~/Calibre-Library", description="Calibre library path")
     cli_path: str = Field(default="auto", description="Calibre CLI tools path")
     
-    @validator('library_path')
+    @field_validator('library_path')
+    @classmethod
     def expand_path(cls, v):
         return str(Path(v).expanduser())
 
@@ -47,7 +49,8 @@ class ASINLookupConfig(BaseModel):
     )
     rate_limit: float = Field(default=2.0, ge=0.1, description="Rate limit in seconds")
     
-    @validator('sources')
+    @field_validator('sources')
+    @classmethod
     def validate_sources(cls, v):
         valid_sources = {'amazon', 'goodreads', 'openlibrary'}
         for source in v:
@@ -62,7 +65,8 @@ class ConversionConfig(BaseModel):
     output_path: str = Field(default="~/Converted-Books", description="Conversion output path")
     kfx_plugin_required: bool = Field(default=True, description="Require KFX plugin")
     
-    @validator('output_path')
+    @field_validator('output_path')
+    @classmethod
     def expand_path(cls, v):
         return str(Path(v).expanduser())
 
@@ -76,14 +80,16 @@ class LoggingConfig(BaseModel):
     )
     format: str = Field(default="detailed", description="Log format style")
     
-    @validator('level')
+    @field_validator('level')
+    @classmethod
     def validate_level(cls, v):
         valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
         if v.upper() not in valid_levels:
             raise ValueError(f"Invalid log level: {v}. Must be one of: {valid_levels}")
         return v.upper()
     
-    @validator('format')
+    @field_validator('format')
+    @classmethod
     def validate_format(cls, v):
         valid_formats = {'simple', 'detailed'}
         if v.lower() not in valid_formats:
@@ -116,7 +122,7 @@ class ConfigurationSchema(BaseModel):
         try:
             # Create schema instance to validate
             schema = cls(**config_data)
-            return schema.dict()
+            return schema.model_dump()
         except Exception as e:
             raise ValueError(f"Configuration validation failed: {e}")
     
@@ -124,7 +130,7 @@ class ConfigurationSchema(BaseModel):
     def get_default_config(cls) -> Dict[str, Any]:
         """Get default configuration."""
         schema = cls()
-        return schema.dict()
+        return schema.model_dump()
     
     @classmethod
     def get_minimal_config(cls) -> Dict[str, Any]:
