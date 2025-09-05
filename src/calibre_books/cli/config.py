@@ -59,9 +59,9 @@ def init(
     Initialize configuration file with setup wizard.
     
     Examples:
-        calibre-books config init --interactive
-        calibre-books config init --minimal
-        calibre-books config init --overwrite
+        book-tool config init --interactive
+        book-tool config init --minimal
+        book-tool config init --overwrite
     """
     dry_run = ctx.obj["dry_run"]
     
@@ -87,7 +87,7 @@ def init(
         if interactive:
             # Interactive configuration wizard
             console.print("[bold blue]Calibre Books Configuration Wizard[/bold blue]")
-            console.print("This wizard will help you set up calibre-books for your system.\n")
+            console.print("This wizard will help you set up book-tool for your system.\n")
             
             config_data = {}
             
@@ -126,7 +126,7 @@ def init(
             console.print("\n[bold]ASIN Lookup Settings[/bold]")
             cache_path = Prompt.ask(
                 "ASIN cache directory",
-                default="~/.calibre-books/cache"
+                default="~/.book-tool/cache"
             )
             
             sources = []
@@ -168,7 +168,7 @@ def init(
                     choices=["DEBUG", "INFO", "WARNING", "ERROR"],
                     default="INFO"
                 ),
-                "file": f"{cache_path}/logs/calibre-books.log",
+                "file": f"{cache_path}/logs/book-tool.log",
                 "format": Prompt.ask(
                     "Log format",
                     choices=["simple", "detailed"],
@@ -186,8 +186,8 @@ def init(
         console.print(f"[green]Configuration initialized successfully![/green]")
         console.print(f"Config file: {config_path}")
         console.print("\nYou can modify settings using:")
-        console.print("  calibre-books config edit")
-        console.print("  calibre-books config show")
+        console.print("  book-tool config edit")
+        console.print("  book-tool config show")
         
     except Exception as e:
         logger.error(f"Configuration initialization failed: {e}")
@@ -218,9 +218,9 @@ def show(
     Display current configuration.
     
     Examples:
-        calibre-books config show
-        calibre-books config show --section download
-        calibre-books config show --format yaml
+        book-tool config show
+        book-tool config show --section download
+        book-tool config show --format yaml
     """
     try:
         config_manager = ConfigManager()
@@ -282,8 +282,8 @@ def edit(
     Edit configuration file in your preferred editor.
     
     Examples:
-        calibre-books config edit
-        calibre-books config edit --editor vim
+        book-tool config edit
+        book-tool config edit --editor vim
     """
     import subprocess
     import os
@@ -293,7 +293,7 @@ def edit(
         config_path = config_manager.get_config_path()
         
         if not config_path.exists():
-            console.print("[red]No configuration file found. Run 'calibre-books config init' first.[/red]")
+            console.print("[red]No configuration file found. Run 'book-tool config init' first.[/red]")
             ctx.exit(1)
         
         # Determine editor
@@ -320,7 +320,7 @@ def edit(
             console.print("[green]Configuration updated successfully![/green]")
         except Exception as e:
             console.print(f"[red]Configuration validation failed: {e}[/red]")
-            console.print("Please fix the configuration file before using calibre-books.")
+            console.print("Please fix the configuration file before using book-tool.")
             ctx.exit(1)
         
     except Exception as e:
@@ -336,7 +336,7 @@ def validate(ctx: click.Context) -> None:
     Validate configuration file and check dependencies.
     
     Examples:
-        calibre-books config validate
+        book-tool config validate
     """
     try:
         config_manager = ConfigManager()
@@ -378,9 +378,9 @@ def validate(ctx: click.Context) -> None:
         all_deps_ok = all(check.available for check in dependency_checks)
         
         if all_deps_ok:
-            console.print("\n[green]All checks passed! calibre-books is ready to use.[/green]")
+            console.print("\n[green]All checks passed! book-tool is ready to use.[/green]")
         else:
-            console.print("\n[yellow]Some dependencies are missing. calibre-books may not work correctly.[/yellow]")
+            console.print("\n[yellow]Some dependencies are missing. book-tool may not work correctly.[/yellow]")
             console.print("Please install the missing dependencies and run validation again.")
         
     except Exception as e:
@@ -412,8 +412,8 @@ def create_profile(
     Create a new configuration profile.
     
     Examples:
-        calibre-books config create-profile --name work
-        calibre-books config create-profile --name home --from-current
+        book-tool config create-profile --name work
+        book-tool config create-profile --name home --from-current
     """
     dry_run = ctx.obj["dry_run"]
     
@@ -428,7 +428,7 @@ def create_profile(
         config_manager.create_profile(name, from_current=from_current)
         
         console.print(f"[green]Profile '{name}' created successfully![/green]")
-        console.print(f"Switch to it with: calibre-books config use-profile --name {name}")
+        console.print(f"Switch to it with: book-tool config use-profile --name {name}")
         
     except Exception as e:
         logger.error(f"Failed to create profile: {e}")
@@ -452,8 +452,8 @@ def use_profile(
     Switch to a different configuration profile.
     
     Examples:
-        calibre-books config use-profile --name work
-        calibre-books config use-profile --name default
+        book-tool config use-profile --name work
+        book-tool config use-profile --name default
     """
     dry_run = ctx.obj["dry_run"]
     

@@ -1,0 +1,8 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+recursive-include src/calibre_books *.py
+recursive-include src/calibre_books/templates *.txt *.json
+exclude tests/*
+exclude *.pyc
+exclude .DS_Store

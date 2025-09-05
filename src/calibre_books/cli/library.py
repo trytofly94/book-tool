@@ -50,8 +50,8 @@ def status(
     Show Calibre library status and statistics.
     
     Examples:
-        calibre-books library status
-        calibre-books library status --library ~/Books --detailed
+        book-tool library status
+        book-tool library status --library ~/Books --detailed
     """
     config = ctx.obj["config"]
     
@@ -182,9 +182,9 @@ def cleanup(
     Clean up and optimize Calibre library.
     
     Examples:
-        calibre-books library cleanup --remove-duplicates
-        calibre-books library cleanup --fix-metadata --cleanup-files
-        calibre-books library cleanup --library ~/Books --rebuild-index
+        book-tool library cleanup --remove-duplicates
+        book-tool library cleanup --fix-metadata --cleanup-files
+        book-tool library cleanup --library ~/Books --rebuild-index
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -309,9 +309,9 @@ def export(
     Export Calibre library to different formats.
     
     Examples:
-        calibre-books library export -s ~/Library -d ~/Backup --format calibre
-        calibre-books library export -s ~/Library -d library.csv --format csv
-        calibre-books library export -s ~/Library -d ~/Export --filter "Sanderson"
+        book-tool library export -s ~/Library -d ~/Backup --format calibre
+        book-tool library export -s ~/Library -d library.csv --format csv
+        book-tool library export -s ~/Library -d ~/Export --filter "Sanderson"
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -388,9 +388,9 @@ def search(
     Search books in Calibre library.
     
     Uses Calibre's powerful search syntax. Examples:
-        calibre-books library search -q "author:Sanderson"
-        calibre-books library search -q "series:\"Stormlight Archive\""
-        calibre-books library search -q "tag:fantasy and rating:>=4"
+        book-tool library search -q "author:Sanderson"
+        book-tool library search -q "series:\"Stormlight Archive\""
+        book-tool library search -q "tag:fantasy and rating:>=4"
     """
     config = ctx.obj["config"]
     

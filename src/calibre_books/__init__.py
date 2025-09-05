@@ -7,7 +7,7 @@ ASIN lookup, Calibre integration, and format conversion.
 
 __version__ = "0.1.0"
 __author__ = "Calibre Books CLI Team"
-__email__ = "support@calibre-books.com"
+__email__ = "support@book-tool.com"
 __description__ = "Professional CLI tool for book automation and Calibre integration"
 
 # Package-level imports for convenience

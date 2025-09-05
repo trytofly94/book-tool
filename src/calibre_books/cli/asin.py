@@ -69,9 +69,9 @@ def lookup(
     Look up ASIN for a specific book.
     
     Examples:
-        calibre-books asin lookup --book "The Way of Kings" --author "Brandon Sanderson"
-        calibre-books asin lookup --isbn "9780765326355"
-        calibre-books asin lookup --book "Dune" --sources amazon goodreads
+        book-tool asin lookup --book "The Way of Kings" --author "Brandon Sanderson"
+        book-tool asin lookup --isbn "9780765326355"
+        book-tool asin lookup --book "Dune" --sources amazon goodreads
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -181,9 +181,9 @@ def batch_update(
     Update ASINs for multiple books in Calibre library.
     
     Examples:
-        calibre-books asin batch-update --library ~/Calibre-Library --missing-only
-        calibre-books asin batch-update --filter "Sanderson" --parallel 4
-        calibre-books asin batch-update --sources amazon goodreads
+        book-tool asin batch-update --library ~/Calibre-Library --missing-only
+        book-tool asin batch-update --filter "Sanderson" --parallel 4
+        book-tool asin batch-update --sources amazon goodreads
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -263,9 +263,9 @@ def cache(
     Manage ASIN lookup cache.
     
     Examples:
-        calibre-books asin cache --show-stats
-        calibre-books asin cache --cleanup
-        calibre-books asin cache --clear
+        book-tool asin cache --show-stats
+        book-tool asin cache --cleanup
+        book-tool asin cache --clear
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -336,8 +336,8 @@ def verify(
     Verify ASIN format and optionally check availability.
     
     Examples:
-        calibre-books asin verify --asin B00ZVA3XL6
-        calibre-books asin verify --asin B00ZVA3XL6 --check-availability
+        book-tool asin verify --asin B00ZVA3XL6
+        book-tool asin verify --asin B00ZVA3XL6 --check-availability
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]

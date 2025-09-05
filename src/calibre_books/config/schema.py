@@ -40,7 +40,7 @@ class CalibreConfig(BaseModel):
 class ASINLookupConfig(BaseModel):
     """ASIN lookup configuration schema."""
     cache_path: str = Field(
-        default="~/.calibre-books/cache/asin_cache.json",
+        default="~/.book-tool/cache/asin_cache.json",
         description="ASIN cache file path"
     )
     sources: List[str] = Field(
@@ -75,7 +75,7 @@ class LoggingConfig(BaseModel):
     """Logging configuration schema."""
     level: str = Field(default="INFO", description="Log level")
     file: str = Field(
-        default="~/.calibre-books/logs/calibre-books.log",
+        default="~/.book-tool/logs/book-tool.log",
         description="Log file path"
     )
     format: str = Field(default="detailed", description="Log format style")
@@ -167,7 +167,7 @@ calibre:
 
 # ASIN lookup settings
 asin_lookup:
-  cache_path: ~/.calibre-books/cache/asin_cache.json  # ASIN cache file
+  cache_path: ~/.book-tool/cache/asin_cache.json  # ASIN cache file
   sources:                          # ASIN lookup sources
     - amazon
     - goodreads  
@@ -183,6 +183,6 @@ conversion:
 # Logging settings
 logging:
   level: INFO                       # Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-  file: ~/.calibre-books/logs/calibre-books.log  # Log file path
+  file: ~/.book-tool/logs/book-tool.log  # Log file path
   format: detailed                  # Log format (simple, detailed)
 '''

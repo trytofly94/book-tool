@@ -29,7 +29,7 @@ class ASINLookupService(LoggerMixin):
         """
         super().__init__()
         self.config = config
-        self.cache_path = config.get('cache_path', '~/.calibre-books/asin_cache.json')
+        self.cache_path = config.get('cache_path', '~/.book-tool/asin_cache.json')
         self.sources = config.get('sources', ['amazon', 'goodreads'])
         self.rate_limit = config.get('rate_limit', 2.0)
         

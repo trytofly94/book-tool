@@ -3,7 +3,7 @@
 Main CLI entry point for Calibre Books tool.
 
 This module provides the main command dispatcher and global options for the
-calibre-books CLI tool.
+book-tool CLI tool.
 """
 
 import logging
@@ -20,7 +20,7 @@ from calibre_books.config.manager import ConfigManager
 from calibre_books.utils.logging import setup_logging
 
 # Import command modules
-from .download import download
+from .process import process
 from .asin import asin
 from .convert import convert
 from .config import config as config_cmd
@@ -33,7 +33,7 @@ def version_option(ctx: click.Context, param: click.Parameter, value: bool) -> N
     """Show version information and exit."""
     if not value or ctx.resilient_parsing:
         return
-    console.print(f"calibre-books version {__version__}")
+    console.print(f"book-tool version {__version__}")
     ctx.exit()
 
 
@@ -87,16 +87,16 @@ def main(
     quiet: bool,
 ) -> None:
     """
-    Calibre Books CLI Tool - Professional book automation and Calibre integration.
+    Book Tool - Professional eBook processing, ASIN lookup, and KFX conversion.
     
-    A comprehensive command-line interface for automating book downloads,
-    ASIN lookup, format conversion, and Calibre library management.
+    A comprehensive command-line interface for processing existing eBook files,
+    adding ASIN metadata, and converting to KFX format for Goodreads integration.
     
     Examples:
-        calibre-books download --series "Stormlight Archive"
-        calibre-books asin lookup --book "The Way of Kings"  
-        calibre-books convert kfx --input-dir ./books
-        calibre-books config init --interactive
+        book-tool process scan --input-dir ./books --check-asin
+        book-tool process prepare --input-dir ./books --add-asin --lookup
+        book-tool convert kfx --input-dir ./books --parallel 4
+        book-tool config init --interactive
     """
     # Set up context object to pass configuration between commands
     ctx.ensure_object(dict)
@@ -125,15 +125,15 @@ def main(
         
         # If no command specified, show help
         if ctx.invoked_subcommand is None:
-            console.print("[bold blue]Calibre Books CLI Tool[/bold blue]")
+            console.print("[bold blue]Book Tool[/bold blue]")
             console.print(f"Version: {__version__}")
             console.print("\nUse --help for more information or specify a command:")
-            console.print("  • [bold]download[/bold] - Download books")
+            console.print("  • [bold]process[/bold] - Process existing eBook files")
             console.print("  • [bold]asin[/bold] - Manage ASINs and metadata")
             console.print("  • [bold]convert[/bold] - Convert book formats")
             console.print("  • [bold]library[/bold] - Manage Calibre library")
             console.print("  • [bold]config[/bold] - Configuration management")
-            console.print("\nExample: calibre-books config init")
+            console.print("\nExample: book-tool process scan -i ./books")
             
     except Exception as e:
         logger.error(f"Failed to initialize CLI: {e}")
@@ -144,7 +144,7 @@ def main(
 
 
 # Add command groups
-main.add_command(download)
+main.add_command(process)
 main.add_command(asin)
 main.add_command(convert)
 main.add_command(library)

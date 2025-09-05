@@ -1,115 +1,266 @@
 """
-Book downloading module for Calibre Books CLI.
+KFX conversion module for Calibre Books CLI.
 
-This module provides functionality for downloading books from various sources
-using the librarian CLI and other download methods.
+This module provides functionality for converting eBook files to KFX format
+for Goodreads integration, using the existing parallel converter logic.
 """
 
 import logging
+import subprocess
+import os
+import concurrent.futures
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 
 from ..utils.logging import LoggerMixin
-from .book import Book, DownloadResult
+from .book import Book, ConversionResult
 
 
-class BookDownloader(LoggerMixin):
+class KFXConverter(LoggerMixin):
     """
-    Book download service.
+    KFX conversion service with parallel processing support.
     
-    Handles downloading books from various sources and manages
-    the download process with progress tracking.
+    Integrates the existing parallel_kfx_converter.py logic into the CLI tool.
     """
     
     def __init__(self, config: Dict[str, Any]):
         """
-        Initialize book downloader.
+        Initialize KFX converter.
         
         Args:
-            config: Download configuration dictionary
+            config: Conversion configuration dictionary
         """
         super().__init__()
         self.config = config
-        self.default_format = config.get('default_format', 'mobi')
-        self.download_path = Path(config.get('download_path', '~/Downloads/Books')).expanduser()
-        self.librarian_path = config.get('librarian_path', 'librarian')
+        self.max_workers = config.get('max_workers', 4)
         
-        self.logger.info(f"Initialized book downloader with path: {self.download_path}")
+        # Import existing parallel KFX converter
+        try:
+            import sys
+            parent_dir = Path(__file__).parent.parent.parent
+            sys.path.insert(0, str(parent_dir))
+            
+            from parallel_kfx_converter import ParallelKFXConverter
+            self._converter = ParallelKFXConverter(max_workers=self.max_workers)
+            self.logger.info("Parallel KFX converter initialized")
+        except ImportError as e:
+            self.logger.warning(f"Parallel KFX converter not available: {e}")
+            self._converter = None
     
-    def download_books(
+    def check_system_requirements(self) -> Dict[str, bool]:
+        """Check if system requirements for KFX conversion are met."""
+        requirements = {
+            'calibre': self._check_calibre(),
+            'ebook-convert': self._check_ebook_convert(),
+            'kfx_plugin': self._check_kfx_plugin(),
+            'kindle_previewer': self._check_kindle_previewer(),
+        }
+        
+        self.logger.info(f"System requirements check: {requirements}")
+        return requirements
+    
+    def _check_calibre(self) -> bool:
+        """Check if Calibre is installed."""
+        try:
+            result = subprocess.run(['calibre', '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+    
+    def _check_ebook_convert(self) -> bool:
+        """Check if ebook-convert is available."""
+        try:
+            result = subprocess.run(['ebook-convert', '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            return False
+    
+    def _check_kfx_plugin(self) -> bool:
+        """Check if KFX Output Plugin is installed."""
+        if self._converter:
+            return self._converter.check_kfx_plugin()
+        return False
+    
+    def _check_kindle_previewer(self) -> bool:
+        """Check if Kindle Previewer 3 is installed."""
+        if self._converter:
+            return self._converter.check_kindle_previewer()
+        return False
+    
+    def convert_books_to_kfx(
         self,
-        series: Optional[str] = None,
-        author: Optional[str] = None,
-        title: Optional[str] = None,
-        format: str = "mobi",
+        books: List[Book],
         output_dir: Optional[Path] = None,
-        max_results: int = 10,
-        quality: str = "high",
-        progress_callback=None,
-    ) -> List[DownloadResult]:
+        parallel: int = 4,
+        conversion_options: Optional[Dict[str, Any]] = None,
+        progress_callback: Optional[Callable] = None,
+    ) -> List[ConversionResult]:
         """
-        Download books based on search criteria.
+        Convert multiple books to KFX format in parallel.
         
         Args:
-            series: Series name to search for
-            author: Author name to search for
-            title: Book title to search for
-            format: Preferred format
-            output_dir: Output directory
-            max_results: Maximum number of books to download
-            quality: Download quality preference
+            books: List of books to convert
+            output_dir: Output directory for KFX files
+            parallel: Number of parallel workers
+            conversion_options: Custom conversion options
             progress_callback: Progress callback function
             
         Returns:
-            List of download results
+            List of conversion results
         """
-        self.logger.info(f"Downloading books with criteria: series={series}, author={author}, title={title}")
+        self.logger.info(f"Converting {len(books)} books to KFX format")
         
-        # TODO: Implement actual book downloading using librarian CLI
-        # This is a placeholder implementation
+        if not self._converter:
+            raise RuntimeError("KFX converter not available")
         
-        return []
+        results = []
+        
+        # Set up output directory
+        if not output_dir:
+            output_dir = Path("./kfx_output")
+        output_dir.mkdir(exist_ok=True)
+        
+        # Create conversion jobs
+        conversion_jobs = []
+        for book in books:
+            if not book.file_path or not book.file_path.exists():
+                results.append(ConversionResult(
+                    book=book,
+                    success=False,
+                    error="Source file not found"
+                ))
+                continue
+            
+            output_filename = f"{book.file_path.stem}_kfx.azw3"
+            output_path = output_dir / output_filename
+            
+            conversion_jobs.append({
+                'book': book,
+                'input_path': book.file_path,
+                'output_path': output_path
+            })
+        
+        if not conversion_jobs:
+            return results
+        
+        # Parallel conversion
+        with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
+            future_to_job = {
+                executor.submit(
+                    self._convert_single_book,
+                    job['book'],
+                    job['input_path'],
+                    job['output_path'],
+                    conversion_options
+                ): job for job in conversion_jobs
+            }
+            
+            completed = 0
+            for future in concurrent.futures.as_completed(future_to_job):
+                completed += 1
+                if progress_callback:
+                    progress_callback(completed, len(conversion_jobs))
+                
+                try:
+                    result = future.result()
+                    results.append(result)
+                except Exception as exc:
+                    job = future_to_job[future]
+                    self.logger.error(f"Conversion failed for {job['book'].metadata.title}: {exc}")
+                    results.append(ConversionResult(
+                        book=job['book'],
+                        success=False,
+                        error=str(exc)
+                    ))
+        
+        successful = sum(1 for r in results if r.success)
+        self.logger.info(f"KFX conversion completed: {successful}/{len(results)} successful")
+        
+        return results
     
-    def parse_book_list(self, input_file: Path) -> List[Book]:
-        """Parse book list from file."""
-        self.logger.info(f"Parsing book list from {input_file}")
-        
-        # TODO: Implement book list parsing
-        return []
-    
-    def download_batch(
+    def _convert_single_book(
         self,
-        books: List[Book],
-        format: str = "mobi",
-        output_dir: Optional[Path] = None,
-        parallel: int = 1,
-        progress_callback=None,
-    ) -> List[DownloadResult]:
-        """Download multiple books in batch."""
-        self.logger.info(f"Starting batch download of {len(books)} books")
-        
-        # TODO: Implement batch downloading
-        return []
+        book: Book,
+        input_path: Path,
+        output_path: Path,
+        conversion_options: Optional[Dict[str, Any]] = None
+    ) -> ConversionResult:
+        """Convert a single book to KFX format."""
+        try:
+            self.logger.debug(f"Converting {book.metadata.title} to KFX")
+            
+            # Use existing converter logic
+            if self._converter:
+                result = self._converter.convert_single_to_kfx(
+                    str(input_path),
+                    str(output_path),
+                    conversion_options
+                )
+                
+                return ConversionResult(
+                    book=book,
+                    success=result['success'],
+                    output_path=Path(result['output_path']) if result['success'] else None,
+                    error=result.get('error'),
+                    output_format='KFX',
+                    file_size=result.get('file_size', 0)
+                )
+            else:
+                # Fallback to basic ebook-convert
+                return self._fallback_convert(book, input_path, output_path)
+                
+        except Exception as e:
+            self.logger.error(f"Failed to convert {book.metadata.title}: {e}")
+            return ConversionResult(
+                book=book,
+                success=False,
+                error=str(e)
+            )
     
-    def download_from_url(
-        self,
-        url: str,
-        output_dir: Optional[Path] = None,
-        filename: Optional[str] = None,
-        progress_callback=None,
-    ) -> DownloadResult:
-        """Download book from direct URL."""
-        self.logger.info(f"Downloading from URL: {url}")
-        
-        # TODO: Implement URL downloading
-        from .book import Book, BookMetadata
-        
-        # Placeholder result
-        metadata = BookMetadata(title="Unknown", author="Unknown")
-        book = Book(metadata=metadata)
-        
-        return DownloadResult(
-            book=book,
-            success=False,
-            error="Not implemented yet"
-        )
+    def _fallback_convert(self, book: Book, input_path: Path, output_path: Path) -> ConversionResult:
+        """Fallback conversion using basic ebook-convert."""
+        try:
+            cmd = [
+                'ebook-convert',
+                str(input_path),
+                str(output_path),
+                '--output-profile', 'kindle_fire',
+                '--no-inline-toc',
+                '--margin-left', '5',
+                '--margin-right', '5',
+                '--margin-top', '5', 
+                '--margin-bottom', '5'
+            ]
+            
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            
+            if result.returncode == 0:
+                file_size = output_path.stat().st_size if output_path.exists() else 0
+                return ConversionResult(
+                    book=book,
+                    success=True,
+                    output_path=output_path,
+                    output_format='AZW3',
+                    file_size=file_size
+                )
+            else:
+                return ConversionResult(
+                    book=book,
+                    success=False,
+                    error=f"ebook-convert failed: {result.stderr}"
+                )
+                
+        except subprocess.TimeoutExpired:
+            return ConversionResult(
+                book=book,
+                success=False,
+                error="Conversion timed out (300s)"
+            )
+        except Exception as e:
+            return ConversionResult(
+                book=book,
+                success=False,
+                error=str(e)
+            )

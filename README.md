@@ -1,10 +1,10 @@
-# Calibre Book Automation CLI
+# Book Tool
 
-A comprehensive command-line tool for automating book downloads, metadata management, and Goodreads integration through Calibre.
+A professional CLI tool for processing existing eBook files, adding ASIN metadata, and converting to KFX format for Goodreads integration.
 
 ## Features
 
-- **Automated Book Downloads**: Download complete book series using the librarian CLI
+- **eBook File Processing**: Scan and analyze existing eBook collections
 - **ASIN Management**: Automatic lookup and assignment of Amazon Standard Identification Numbers
 - **Calibre Integration**: Seamless integration with Calibre database and metadata management
 - **KFX Conversion**: Parallel conversion to KFX format for enhanced Goodreads integration
@@ -16,7 +16,6 @@ A comprehensive command-line tool for automating book downloads, metadata manage
 - [Python 3.9+](https://www.python.org/) 
 - [Calibre](https://calibre-ebook.com/) with CLI tools in PATH
 - [Chrome Browser](https://www.google.com/chrome/) (for web scraping features)
-- [librarian CLI](https://github.com/librarian-cli/librarian) for book downloads
 
 ### System Requirements
 
@@ -26,55 +25,78 @@ A comprehensive command-line tool for automating book downloads, metadata manage
 
 ## Installation
 
-1. Clone the repository:
-   ```sh
-   git clone [URL]
-   cd Calibre-Ingest
-   ```
+### System-wide Installation (Recommended)
 
-2. Install Python dependencies:
-   ```sh
-   pip install requests beautifulsoup4 selenium webdriver-manager
-   ```
+Install book-tool system-wide using pip:
 
-3. Verify Calibre installation:
-   ```sh
-   calibredb --version
-   ebook-convert --version
-   ```
+```sh
+pip install book-tool
+```
 
-4. Install librarian CLI (follow their installation guide)
+Or install from source:
+
+```sh
+git clone https://github.com/trytofly94/book-tool.git
+cd book-tool
+pip install -e .
+```
+
+### Development Installation
+
+For development, clone and install in editable mode:
+
+```sh
+git clone https://github.com/trytofly94/book-tool.git
+cd book-tool
+pip install -e ".[dev]"
+```
+
+### Verify Installation
+
+After installation, verify that book-tool is available:
+
+```sh
+book-tool --version
+book-tool --help
+```
+
+### Prerequisites Verification
+
+Ensure Calibre CLI tools are installed and in PATH:
+
+```sh
+calibredb --version
+ebook-convert --version
+ebook-meta --version
+```
+
 
 ## Usage
 
-### Master Automation Script
+### CLI Commands
 
-Run the interactive master script for guided workflows:
-
+#### Process existing eBook files
 ```sh
-./book_automation_master.sh
+book-tool process scan -i ./books --check-asin
+book-tool process prepare -i ./books --add-asin --lookup
 ```
 
-### Individual Components
-
-#### Download Books
+#### Convert to KFX format
 ```sh
-python3 auto_download_books.py
+book-tool convert kfx -i ./books --parallel 4
+book-tool convert single -i book.epub -f kfx
 ```
 
 #### ASIN Management
 ```sh
-python3 calibre_asin_automation.py
+book-tool asin lookup --book "The Way of Kings" --author "Brandon Sanderson"
+book-tool asin batch-update --library ~/Calibre-Library
 ```
 
-#### KFX Conversion
+#### Configuration
 ```sh
-python3 parallel_kfx_converter.py
-```
-
-#### Enhanced ASIN Lookup
-```sh
-python3 enhanced_asin_lookup.py
+book-tool config init --interactive
+book-tool config show
 ```
 
 ## Project Structure

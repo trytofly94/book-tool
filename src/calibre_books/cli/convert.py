@@ -13,7 +13,8 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from calibre_books.core.converter import FormatConverter
+from calibre_books.core.downloader import KFXConverter
+from calibre_books.core.file_scanner import FileScanner
 from calibre_books.utils.progress import ProgressManager
 
 console = Console()
@@ -33,13 +34,13 @@ def convert(ctx: click.Context) -> None:
     "-i",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help="Directory containing KFX files to convert.",
+    help="Directory containing eBook files to convert to KFX.",
 )
 @click.option(
     "--output-dir",
     "-o",
     type=click.Path(path_type=Path),
-    help="Output directory for converted files.",
+    help="Output directory for KFX files.",
 )
 @click.option(
     "--parallel",
@@ -49,24 +50,9 @@ def convert(ctx: click.Context) -> None:
     help="Number of parallel conversion processes.",
 )
 @click.option(
-    "--output-format",
-    "-f",
-    type=click.Choice(["epub", "mobi", "azw3", "pdf"]),
-    default="epub",
-    help="Target format for conversion.",
-)
-@click.option(
-    "--quality",
-    type=click.Choice(["high", "medium", "low"]),
-    default="high",
-    help="Conversion quality setting.",
-)
-@click.option(
-    "--preserve-metadata",
-    "-m",
+    "--check-requirements",
     is_flag=True,
-    default=True,
-    help="Preserve original metadata during conversion.",
+    help="Check system requirements for KFX conversion.",
 )
 @click.pass_context
 def kfx(
@@ -74,63 +60,94 @@ def kfx(
     input_dir: Path,
     output_dir: Optional[Path],
     parallel: int,
-    output_format: str,
-    quality: str,
-    preserve_metadata: bool,
+    check_requirements: bool,
 ) -> None:
     """
-    Convert KFX files to other formats for Goodreads integration.
+    Convert eBook files to KFX format for Goodreads integration.
     
-    This command specializes in converting KFX format books to formats
-    compatible with Goodreads reading tracking and other services.
+    This command converts existing eBook files (EPUB, MOBI, AZW3) to KFX format
+    optimized for Kindle Goodreads integration with proper metadata preservation.
     
     Examples:
-        calibre-books convert kfx --input-dir ./kfx_books --parallel 4
-        calibre-books convert kfx --input-dir ./books --output-format epub
-        calibre-books convert kfx --input-dir ./books --quality high
+        book-tool convert kfx --input-dir ./books --parallel 4
+        book-tool convert kfx --input-dir ./books --check-requirements
+        book-tool convert kfx --input-dir ./mobi_books --output-dir ./kfx_output
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
     
     try:
-        converter = FormatConverter(config.get_conversion_config())
+        converter = KFXConverter(config)
         
-        # Find all KFX files in input directory
-        kfx_files = list(input_dir.glob("**/*.kfx"))
-        if not kfx_files:
-            console.print(f"[yellow]No KFX files found in {input_dir}[/yellow]")
+        # Check system requirements if requested
+        if check_requirements:
+            console.print("[cyan]Checking KFX conversion requirements...[/cyan]")
+            requirements = converter.check_system_requirements()
+            
+            table = Table(title="System Requirements")
+            table.add_column("Component", style="cyan")
+            table.add_column("Status", justify="center")
+            table.add_column("Description")
+            
+            status_map = {
+                'calibre': 'Calibre GUI application',
+                'ebook-convert': 'Calibre ebook-convert tool',
+                'kfx_plugin': 'KFX Output Plugin for Calibre',
+                'kindle_previewer': 'Kindle Previewer 3'
+            }
+            
+            for component, available in requirements.items():
+                status = "[green]✓[/green]" if available else "[red]✗[/red]"
+                description = status_map.get(component, component)
+                table.add_row(component, status, description)
+            
+            console.print(table)
+            
+            missing = [k for k, v in requirements.items() if not v]
+            if missing:
+                console.print(f"\n[yellow]Missing requirements: {', '.join(missing)}[/yellow]")
+                console.print("Please install missing components before conversion.")
+            else:
+                console.print("\n[green]All requirements satisfied![/green]")
+            
+            return
+        
+        # Scan for eBook files
+        scanner = FileScanner(config)
+        
+        with ProgressManager("Scanning for eBook files") as progress:
+            books = scanner.scan_directory(
+                input_dir,
+                recursive=True,
+                formats=['mobi', 'epub', 'azw3', 'pdf'],
+                check_metadata=False,
+                progress_callback=progress.update,
+            )
+        
+        if not books:
+            console.print(f"[yellow]No convertible eBook files found in {input_dir}[/yellow]")
             return
         
         if dry_run:
-            console.print(f"[yellow]DRY RUN: Would convert {len(kfx_files)} KFX files:[/yellow]")
+            console.print(f"[yellow]DRY RUN: Would convert {len(books)} books to KFX:[/yellow]")
             console.print(f"  Input directory: {input_dir}")
-            console.print(f"  Output directory: {output_dir or 'same as input'}")
-            console.print(f"  Output format: {output_format}")
+            console.print(f"  Output directory: {output_dir or './kfx_output'}")
             console.print(f"  Parallel processes: {parallel}")
-            console.print(f"  Quality: {quality}")
-            console.print(f"  Preserve metadata: {preserve_metadata}")
             
-            for kfx_file in kfx_files[:5]:  # Show first 5
-                console.print(f"    • {kfx_file.name}")
-            if len(kfx_files) > 5:
-                console.print(f"    ... and {len(kfx_files) - 5} more")
+            for book in books[:5]:  # Show first 5
+                console.print(f"    • {book.metadata.title} ({book.format.value})")
+            if len(books) > 5:
+                console.print(f"    ... and {len(books) - 5} more")
             return
         
-        # Validate KFX plugin availability
-        if not converter.validate_kfx_plugin():
-            console.print("[red]Error: KFX Input plugin not found in Calibre[/red]")
-            console.print("Please install the KFX Input plugin first.")
-            ctx.exit(1)
+        # Start KFX conversion
+        console.print(f"[cyan]Converting {len(books)} books to KFX format...[/cyan]")
         
-        # Start conversion with progress tracking
-        with ProgressManager(f"Converting {len(kfx_files)} KFX files") as progress:
-            results = converter.convert_kfx_batch(
-                kfx_files,
+        with ProgressManager(f"Converting to KFX") as progress:
+            results = converter.convert_books_to_kfx(
+                books,
                 output_dir=output_dir,
-                output_format=output_format,
                 parallel=parallel,
-                quality=quality,
-                preserve_metadata=preserve_metadata,
                 progress_callback=progress.update,
             )
         
@@ -138,20 +155,22 @@ def kfx(
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
         
-        console.print(f"[green]KFX conversion completed[/green]")
-        console.print(f"  Files processed: {len(kfx_files)}")
+        console.print(f"\n[green]KFX conversion completed![/green]")
+        console.print(f"  Books processed: {len(books)}")
         console.print(f"  Successful: {successful}")
         
         if failed > 0:
             console.print(f"  [red]Failed: {failed}[/red]")
             
-            # Show failed files
-            failed_files = [r for r in results if not r.success]
-            if failed_files:
-                console.print("\nFailed conversions:")
-                for result in failed_files[:5]:  # Show first 5
-                    console.print(f"  • {result.input_file}: {result.error}")
-        
+            # Show failed conversions
+            failed_results = [r for r in results if not r.success]
+            if failed_results:
+                console.print("\n[red]Failed conversions:[/red]")
+                for result in failed_results[:5]:  # Show first 5
+                    console.print(f"  • {result.book.metadata.title}: {result.error}")
+                if len(failed_results) > 5:
+                    console.print(f"    ... and {len(failed_results) - 5} more")
+            
     except Exception as e:
         logger.error(f"KFX conversion failed: {e}")
         console.print(f"[red]KFX conversion failed: {e}[/red]")
@@ -164,36 +183,20 @@ def kfx(
     "-i",
     type=click.Path(exists=True, path_type=Path),
     required=True,
-    help="Input book file to convert.",
+    help="Single eBook file to convert.",
 )
 @click.option(
     "--output-file",
     "-o",
     type=click.Path(path_type=Path),
-    help="Output file path (auto-generated if not specified).",
+    help="Output file path.",
 )
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["epub", "mobi", "azw3", "pdf", "txt"]),
-    required=True,
-    help="Target format for conversion.",
-)
-@click.option(
-    "--quality",
-    type=click.Choice(["high", "medium", "low"]),
-    default="high",
-    help="Conversion quality setting.",
-)
-@click.option(
-    "--cover/--no-cover",
-    default=True,
-    help="Include/exclude cover image.",
-)
-@click.option(
-    "--metadata/--no-metadata",
-    default=True,
-    help="Preserve/strip metadata.",
+    type=click.Choice(["kfx", "azw3", "epub", "mobi", "pdf"]),
+    default="kfx",
+    help="Target conversion format.",
 )
 @click.pass_context
 def single(
@@ -201,218 +204,79 @@ def single(
     input_file: Path,
     output_file: Optional[Path],
     format: str,
-    quality: str,
-    cover: bool,
-    metadata: bool,
 ) -> None:
     """
-    Convert a single book file to another format.
+    Convert a single eBook file.
     
     Examples:
-        calibre-books convert single -i book.mobi -f epub
-        calibre-books convert single -i book.pdf -f txt --no-cover
-        calibre-books convert single -i book.kfx -o custom_name.epub -f epub
+        book-tool convert single -i book.epub -f kfx
+        book-tool convert single -i book.mobi -o book_kfx.azw3 -f kfx
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
     
     try:
-        converter = FormatConverter(config.get_conversion_config())
+        # Create output filename if not specified
+        if not output_file:
+            suffix = '.azw3' if format == 'kfx' else f'.{format}'
+            output_file = input_file.parent / f"{input_file.stem}_converted{suffix}"
         
         if dry_run:
-            console.print("[yellow]DRY RUN: Would convert single file:[/yellow]")
+            console.print(f"[yellow]DRY RUN: Would convert:[/yellow]")
             console.print(f"  Input: {input_file}")
-            console.print(f"  Output: {output_file or 'auto-generated'}")
+            console.print(f"  Output: {output_file}")
             console.print(f"  Format: {format}")
-            console.print(f"  Quality: {quality}")
-            console.print(f"  Include cover: {cover}")
-            console.print(f"  Preserve metadata: {metadata}")
             return
         
-        with ProgressManager("Converting book") as progress:
-            result = converter.convert_single(
-                input_file,
-                output_file=output_file,
-                output_format=format,
-                quality=quality,
-                include_cover=cover,
-                preserve_metadata=metadata,
-                progress_callback=progress.update,
-            )
-        
-        if result.success:
-            console.print(f"[green]Successfully converted to: {result.output_file}[/green]")
+        if format == 'kfx':
+            # Use KFX converter
+            converter = KFXConverter(config)
             
-            # Show file size information
-            if result.file_size:
-                console.print(f"  Output size: {result.file_size}")
+            # Create a Book object from the file
+            scanner = FileScanner(config)
+            book = scanner._create_book_from_file(input_file, extract_metadata=True)
+            
+            if not book:
+                console.print(f"[red]Could not process file: {input_file}[/red]")
+                ctx.exit(1)
+            
+            console.print(f"Converting {book.metadata.title} to KFX...")
+            
+            with ProgressManager("Converting to KFX") as progress:
+                results = converter.convert_books_to_kfx(
+                    [book],
+                    output_dir=output_file.parent,
+                    parallel=1,
+                    progress_callback=progress.update,
+                )
+            
+            if results and results[0].success:
+                console.print(f"[green]✓ Conversion successful: {results[0].output_path}[/green]")
+            else:
+                error = results[0].error if results else "Unknown error"
+                console.print(f"[red]✗ Conversion failed: {error}[/red]")
+                ctx.exit(1)
         else:
-            console.print(f"[red]Conversion failed: {result.error}[/red]")
-            ctx.exit(1)
+            # Use standard ebook-convert for other formats
+            import subprocess
+            
+            cmd = [
+                'ebook-convert',
+                str(input_file),
+                str(output_file),
+                '--output-profile', 'generic_eink' if format == 'epub' else 'kindle_fire'
+            ]
+            
+            console.print(f"Converting to {format.upper()}...")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                console.print(f"[green]✓ Conversion successful: {output_file}[/green]")
+            else:
+                console.print(f"[red]✗ Conversion failed: {result.stderr}[/red]")
+                ctx.exit(1)
             
     except Exception as e:
         logger.error(f"Single file conversion failed: {e}")
         console.print(f"[red]Conversion failed: {e}[/red]")
-        ctx.exit(1)
-
-
-@convert.command()
-@click.option(
-    "--input-dir",
-    "-i",
-    type=click.Path(exists=True, path_type=Path),
-    required=True,
-    help="Directory containing files to convert.",
-)
-@click.option(
-    "--output-dir",
-    "-o",
-    type=click.Path(path_type=Path),
-    help="Output directory for converted files.",
-)
-@click.option(
-    "--from-format",
-    type=click.Choice(["mobi", "epub", "pdf", "azw3", "kfx"]),
-    help="Source format filter (convert only these files).",
-)
-@click.option(
-    "--to-format",
-    "-f",
-    type=click.Choice(["epub", "mobi", "azw3", "pdf", "txt"]),
-    required=True,
-    help="Target format for conversion.",
-)
-@click.option(
-    "--parallel",
-    "-p",
-    type=int,
-    default=2,
-    help="Number of parallel conversion processes.",
-)
-@click.option(
-    "--recursive",
-    "-r",
-    is_flag=True,
-    help="Search subdirectories recursively.",
-)
-@click.pass_context
-def batch(
-    ctx: click.Context,
-    input_dir: Path,
-    output_dir: Optional[Path],
-    from_format: Optional[str],
-    to_format: str,
-    parallel: int,
-    recursive: bool,
-) -> None:
-    """
-    Convert multiple book files in a directory.
-    
-    Examples:
-        calibre-books convert batch -i ./books -f epub --recursive
-        calibre-books convert batch -i ./mobi_books --from-format mobi -f epub
-        calibre-books convert batch -i ./books -o ./converted --parallel 4 -f pdf
-    """
-    config = ctx.obj["config"]
-    dry_run = ctx.obj["dry_run"]
-    
-    try:
-        converter = FormatConverter(config.get_conversion_config())
-        
-        # Find all files to convert
-        files_to_convert = converter.find_convertible_files(
-            input_dir,
-            source_format=from_format,
-            recursive=recursive,
-        )
-        
-        if not files_to_convert:
-            console.print(f"[yellow]No convertible files found in {input_dir}[/yellow]")
-            return
-        
-        if dry_run:
-            console.print(f"[yellow]DRY RUN: Would convert {len(files_to_convert)} files:[/yellow]")
-            console.print(f"  Input directory: {input_dir}")
-            console.print(f"  Output directory: {output_dir or 'same as input'}")
-            console.print(f"  Source format: {from_format or 'all supported'}")
-            console.print(f"  Target format: {to_format}")
-            console.print(f"  Parallel processes: {parallel}")
-            console.print(f"  Recursive: {recursive}")
-            
-            for file in files_to_convert[:5]:  # Show first 5
-                console.print(f"    • {file.name}")
-            if len(files_to_convert) > 5:
-                console.print(f"    ... and {len(files_to_convert) - 5} more")
-            return
-        
-        # Start batch conversion
-        with ProgressManager(f"Converting {len(files_to_convert)} files") as progress:
-            results = converter.convert_batch(
-                files_to_convert,
-                output_dir=output_dir,
-                output_format=to_format,
-                parallel=parallel,
-                progress_callback=progress.update,
-            )
-        
-        # Display results
-        successful = sum(1 for r in results if r.success)
-        failed = len(results) - successful
-        
-        console.print(f"[green]Batch conversion completed[/green]")
-        console.print(f"  Files processed: {len(files_to_convert)}")
-        console.print(f"  Successful: {successful}")
-        
-        if failed > 0:
-            console.print(f"  [red]Failed: {failed}[/red]")
-            
-    except Exception as e:
-        logger.error(f"Batch conversion failed: {e}")
-        console.print(f"[red]Batch conversion failed: {e}[/red]")
-        ctx.exit(1)
-
-
-@convert.command()
-@click.pass_context
-def formats(ctx: click.Context) -> None:
-    """Show supported input and output formats."""
-    config = ctx.obj["config"]
-    
-    try:
-        converter = FormatConverter(config.get_conversion_config())
-        supported_formats = converter.get_supported_formats()
-        
-        # Input formats table
-        input_table = Table(title="Supported Input Formats")
-        input_table.add_column("Format", style="cyan")
-        input_table.add_column("Extension", style="white")
-        input_table.add_column("Description", style="dim")
-        
-        for fmt in supported_formats.input_formats:
-            input_table.add_row(
-                fmt.name,
-                fmt.extension,
-                fmt.description,
-            )
-        
-        console.print(input_table)
-        
-        # Output formats table  
-        output_table = Table(title="Supported Output Formats")
-        output_table.add_column("Format", style="cyan")
-        output_table.add_column("Extension", style="white")
-        output_table.add_column("Description", style="dim")
-        
-        for fmt in supported_formats.output_formats:
-            output_table.add_row(
-                fmt.name,
-                fmt.extension,
-                fmt.description,
-            )
-        
-        console.print(output_table)
-        
-    except Exception as e:
-        logger.error(f"Failed to get supported formats: {e}")
-        console.print(f"[red]Failed to get supported formats: {e}[/red]")
         ctx.exit(1)

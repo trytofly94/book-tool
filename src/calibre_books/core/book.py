@@ -199,6 +199,16 @@ class Book:
         return book
 
 
+@dataclass 
+class ASINLookupResult:
+    """Result of an ASIN lookup operation."""
+    book: 'Book'
+    success: bool
+    asin: Optional[str] = None
+    source: Optional[str] = None  # 'online_lookup', 'existing', etc.
+    error: Optional[str] = None
+
+
 @dataclass
 class DownloadResult:
     """Result of a book download operation."""

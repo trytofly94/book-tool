@@ -46,7 +46,7 @@ class ConfigManager(LoggerMixin):
     @staticmethod
     def get_default_config_path() -> Path:
         """Get the default configuration file path."""
-        config_dir = Path.home() / '.calibre-books'
+        config_dir = Path.home() / '.book-tool'
         return config_dir / 'config.yml'
     
     def get_config_path(self) -> Path:

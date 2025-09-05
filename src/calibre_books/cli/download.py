@@ -83,9 +83,9 @@ def books(
     Download books based on search criteria.
     
     Examples:
-        calibre-books download books --series "Stormlight Archive"
-        calibre-books download books --author "Brandon Sanderson" --format epub
-        calibre-books download books --title "The Way of Kings"
+        book-tool download books --series "Stormlight Archive"
+        book-tool download books --author "Brandon Sanderson" --format epub
+        book-tool download books --title "The Way of Kings"
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -179,7 +179,7 @@ def batch(
     Title|Author or just Title
     
     Examples:
-        calibre-books download batch -i books_list.txt --parallel 3
+        book-tool download batch -i books_list.txt --parallel 3
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -251,8 +251,8 @@ def url(
     Download book from direct URL.
     
     Examples:
-        calibre-books download url -u "https://example.com/book.mobi"
-        calibre-books download url -u "https://example.com/book.epub" -n "custom_name.epub"
+        book-tool download url -u "https://example.com/book.mobi"
+        book-tool download url -u "https://example.com/book.epub" -n "custom_name.epub"
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]

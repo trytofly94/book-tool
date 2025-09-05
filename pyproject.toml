@@ -3,13 +3,13 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "calibre-books"
+name = "book-tool"
 version = "0.1.0"
-description = "Professional CLI tool for book automation and Calibre integration"
+description = "Professional CLI tool for eBook processing, ASIN lookup, and KFX conversion"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
-    {name = "Calibre Books CLI Team", email = "support@calibre-books.com"}
+    {name = "Book Tool Contributors", email = "support@book-tool.com"}
 ]
 keywords = ["calibre", "ebooks", "automation", "cli", "books"]
 classifiers = [
@@ -45,11 +45,11 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
-    "black>=23.0.0",
-    "isort>=5.12.0",
-    "flake8>=6.0.0",
+    "ruff>=0.1.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
+    "build>=0.10.0",
+    "twine>=4.0.0",
     "sphinx>=6.0.0",
     "sphinx-click>=4.4.0",
 ]
@@ -65,13 +65,13 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/calibre-books/cli-tool"
-Documentation = "https://calibre-books.readthedocs.io"
-Repository = "https://github.com/calibre-books/cli-tool.git"
-"Bug Tracker" = "https://github.com/calibre-books/cli-tool/issues"
+Homepage = "https://github.com/trytofly94/book-tool"
+Documentation = "https://github.com/trytofly94/book-tool#readme"
+Repository = "https://github.com/trytofly94/book-tool.git"
+"Bug Tracker" = "https://github.com/trytofly94/book-tool/issues"
 
 [project.scripts]
-calibre-books = "calibre_books.cli.main:main"
+book-tool = "calibre_books.cli.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -79,29 +79,21 @@ where = ["src"]
 [tool.setuptools.package-dir]
 "" = "src"
 
-[tool.black]
+[tool.ruff]
+target-version = "py39"
 line-length = 88
-target-version = ['py39']
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
+select = ["E", "F", "W", "C90", "I", "N", "UP", "B", "A", "S", "T20", "Q", "RET", "SIM", "ARG", "ERA", "PL", "PIE"]
+ignore = ["S101"]  # Allow assert statements in tests
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
-line_length = 88
-known_first_party = ["calibre_books"]
+[tool.ruff.per-file-ignores]
+"tests/**/*" = ["S101", "ARG", "PLR2004"]
+"src/calibre_books/legacy/*" = ["ALL"]  # Legacy code exemption
+
+[tool.ruff.isort]
+known-first-party = ["calibre_books"]
+
+[tool.ruff.flake8-quotes]
+inline-quotes = "double"
 
 [tool.mypy]
 python_version = "3.9"
