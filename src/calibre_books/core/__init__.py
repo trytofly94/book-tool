@@ -7,7 +7,7 @@ Calibre integration, download services, ASIN lookup, and format conversion.
 
 from .book import Book, BookMetadata, BookStatus
 from .calibre import CalibreIntegration
-from .downloader import BookDownloader
+from .downloader import KFXConverter
 from .asin_lookup import ASINLookupService
 from .converter import FormatConverter
 
@@ -16,7 +16,7 @@ __all__ = [
     "BookMetadata", 
     "BookStatus",
     "CalibreIntegration",
-    "BookDownloader",
+    "KFXConverter",
     "ASINLookupService",
     "FormatConverter",
 ]
