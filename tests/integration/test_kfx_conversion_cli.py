@@ -14,8 +14,8 @@ from unittest.mock import Mock, patch, MagicMock
 from click.testing import CliRunner
 
 from calibre_books.config.manager import ConfigManager
-from calibre_books.cli.main import cli
-from calibre_books.cli.convert import convert_to_kfx
+from calibre_books.cli.main import main
+from calibre_books.cli.convert import kfx
 
 
 class TestKFXConversionCLIIntegration:
@@ -96,7 +96,7 @@ class TestKFXConversionCLIIntegration:
                     mock_stat.return_value.st_size = 1024
                     
                     # Run the CLI command - this should NOT fail with AttributeError
-                    result = runner.invoke(cli, [
+                    result = runner.invoke(main, [
                         '--config', str(config_file),
                         'convert', 'kfx',
                         '--input-dir', str(test_book.parent),
@@ -153,7 +153,7 @@ class TestKFXConversionCLIIntegration:
                 mock_converter_class.return_value = mock_converter
                 
                 # Should not raise AttributeError even without conversion config
-                result = runner.invoke(cli, [
+                result = runner.invoke(main, [
                     '--config', str(config_file),
                     'convert', 'kfx',
                     '--input-dir', str(test_book.parent),
@@ -199,7 +199,7 @@ class TestKFXConversionCLIIntegration:
                 mock_converter_class.return_value = mock_converter
                 
                 # Test that custom parallel setting from CLI overrides config
-                result = runner.invoke(cli, [
+                result = runner.invoke(main, [
                     '--config', str(config_file),
                     'convert', 'kfx',
                     '--input-dir', str(test_book.parent),
@@ -243,11 +243,11 @@ class TestKFXConversionCLIIntegration:
                     with patch('click.get_current_context') as mock_ctx:
                         mock_ctx.return_value.obj = {"config": config_manager}
                         
-                        with patch('calibre_books.cli.convert.scan_for_books') as mock_scan:
+                        with patch('calibre_books.core.file_scanner.FileScanner.scan_directory') as mock_scan:
                             mock_scan.return_value = []  # No books found is fine for this test
                             
                             # This should initialize KFXConverter without AttributeError
-                            result = runner.invoke(convert_to_kfx, [
+                            result = runner.invoke(kfx, [
                                 '--input-dir', str(test_book.parent),
                                 '--output-dir', str(output_dir)
                             ])
@@ -277,7 +277,7 @@ class TestKFXConversionCLIErrorHandling:
             runner = CliRunner()
             
             # Should handle malformed config gracefully
-            result = runner.invoke(cli, [
+            result = runner.invoke(main, [
                 '--config', str(config_file),
                 'convert', 'kfx',
                 '--help'  # Just get help to test config loading
@@ -297,7 +297,7 @@ class TestKFXConversionCLIErrorHandling:
         nonexistent_config = Path("/tmp/nonexistent_config.yml")
         
         # Should handle missing config file gracefully
-        result = runner.invoke(cli, [
+        result = runner.invoke(main, [
             '--config', str(nonexistent_config),
             'convert', 'kfx',
             '--help'
@@ -378,7 +378,7 @@ class TestKFXConversionConfigManagerFlow:
         config_file.close()
         
         try:
-            from calibre_books.cli.main import cli
+            from calibre_books.cli.main import main
             from calibre_books.config.manager import ConfigManager
             
             runner = CliRunner()
@@ -399,8 +399,8 @@ class TestKFXConversionConfigManagerFlow:
             with patch('calibre_books.core.downloader.KFXConverter') as mock_kfx_class:
                 mock_kfx_class.side_effect = capture_converter_init
                 
-                with patch('calibre_books.cli.convert.scan_for_books', return_value=[]):
-                    result = runner.invoke(cli, [
+                with patch('calibre_books.core.file_scanner.FileScanner.scan_directory', return_value=[]):
+                    result = runner.invoke(main, [
                         '--config', str(Path(config_file.name)),
                         'convert', 'kfx',
                         '--input-dir', '/tmp',
