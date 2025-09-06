@@ -26,6 +26,9 @@ class BookFormat(Enum):
     RTF = "rtf"
     HTML = "html"
     DOCX = "docx"
+    FB2 = "fb2"
+    LIT = "lit"
+    PDB = "pdb"
 
 
 class BookStatus(Enum):
