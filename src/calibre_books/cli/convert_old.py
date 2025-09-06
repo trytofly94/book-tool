@@ -99,7 +99,7 @@ def kfx(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        converter = FormatConverter(config.get_conversion_config())
+        converter = FormatConverter(config)
         
         # Find all KFX files in input directory
         kfx_files = list(input_dir.glob("**/*.kfx"))
@@ -223,7 +223,7 @@ def single(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        converter = FormatConverter(config.get_conversion_config())
+        converter = FormatConverter(config)
         
         if dry_run:
             console.print("[yellow]DRY RUN: Would convert single file:[/yellow]")
@@ -323,7 +323,7 @@ def batch(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        converter = FormatConverter(config.get_conversion_config())
+        converter = FormatConverter(config)
         
         # Find all files to convert
         files_to_convert = converter.find_convertible_files(
@@ -385,7 +385,7 @@ def formats(ctx: click.Context) -> None:
     config = ctx.obj["config"]
     
     try:
-        converter = FormatConverter(config.get_conversion_config())
+        converter = FormatConverter(config)
         supported_formats = converter.get_supported_formats()
         
         # Input formats table

@@ -15,7 +15,7 @@ import json
 import os
 import threading
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 import concurrent.futures
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -27,6 +27,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from ..utils.logging import LoggerMixin
 from .book import Book, ASINLookupResult
 
+if TYPE_CHECKING:
+    from ..config.manager import ConfigManager
+
 
 class ASINLookupService(LoggerMixin):
     """
@@ -36,18 +39,29 @@ class ASINLookupService(LoggerMixin):
     with caching and rate limiting.
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config_manager: 'ConfigManager'):
         """
         Initialize ASIN lookup service.
         
         Args:
-            config: ASIN lookup configuration dictionary
+            config_manager: ConfigManager instance for accessing configuration
         """
         super().__init__()
-        self.config = config
-        self.cache_path = Path(config.get('cache_path', '~/.book-tool/asin_cache.json')).expanduser()
-        self.sources = config.get('sources', ['amazon', 'goodreads', 'openlibrary'])
-        self.rate_limit = config.get('rate_limit', 2.0)
+        self.config_manager = config_manager
+        
+        # Get ASIN lookup specific configuration with error handling
+        try:
+            asin_config = config_manager.get_asin_config()
+            self.cache_path = Path(asin_config.get('cache_path', '~/.book-tool/asin_cache.json')).expanduser()
+            self.sources = asin_config.get('sources', ['amazon', 'goodreads', 'openlibrary'])
+            self.rate_limit = asin_config.get('rate_limit', 2.0)
+            
+            self.logger.debug(f"Initialized ASIN lookup with sources: {self.sources}, cache: {self.cache_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to load ASIN config, using defaults: {e}")
+            self.cache_path = Path('~/.book-tool/asin_cache.json').expanduser()
+            self.sources = ['amazon', 'goodreads', 'openlibrary']
+            self.rate_limit = 2.0
         
         self.logger.info(f"Initialized ASIN lookup service with sources: {self.sources}")
         

@@ -7,10 +7,13 @@ and database for managing book libraries and metadata.
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
 from ..utils.logging import LoggerMixin
 from .book import Book, LibraryStats
+
+if TYPE_CHECKING:
+    from ..config.manager import ConfigManager
 
 
 class CalibreIntegration(LoggerMixin):
@@ -21,17 +24,27 @@ class CalibreIntegration(LoggerMixin):
     managing metadata, and performing library operations.
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config_manager: 'ConfigManager'):
         """
         Initialize Calibre integration.
         
         Args:
-            config: Calibre configuration dictionary
+            config_manager: ConfigManager instance for accessing configuration
         """
         super().__init__()
-        self.config = config
-        self.library_path = Path(config.get('library_path', '~/Calibre-Library')).expanduser()
-        self.cli_path = config.get('cli_path', 'auto')
+        self.config_manager = config_manager
+        
+        # Get Calibre-specific configuration with error handling
+        try:
+            calibre_config = config_manager.get_calibre_config()
+            self.library_path = Path(calibre_config.get('library_path', '~/Calibre-Library')).expanduser()
+            self.cli_path = calibre_config.get('cli_path', 'auto')
+            
+            self.logger.debug(f"Initialized Calibre integration with library: {self.library_path}, CLI: {self.cli_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to load Calibre config, using defaults: {e}")
+            self.library_path = Path('~/Calibre-Library').expanduser()
+            self.cli_path = 'auto'
         
         self.logger.info(f"Initialized Calibre integration with library: {self.library_path}")
     
