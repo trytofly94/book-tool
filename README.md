@@ -17,10 +17,44 @@ A professional CLI tool for processing existing eBook files, adding ASIN metadat
 - [Calibre](https://calibre-ebook.com/) with CLI tools in PATH
 - [Chrome Browser](https://www.google.com/chrome/) (for web scraping features)
 
+### KFX Conversion Prerequisites
+
+KFX conversion requires the **KFX Output Plugin** for Calibre:
+
+#### Install KFX Output Plugin
+
+1. Open Calibre
+2. Go to **Preferences** → **Plugins**
+3. Click **Get new plugins**
+4. Search for **"KFX Output"**
+5. Install the plugin by **jhowell** (ensure authenticity)
+6. **Restart Calibre** (important!)
+
+#### Verify Plugin Installation
+
+Check that the plugin is properly installed:
+
+```sh
+calibre-customize -l | grep KFX
+```
+
+Expected output:
+```
+KFX Output (2, 17, 1) - Convert ebooks to KFX format
+Set KFX metadata (2, 17, 1) - Set metadata in KFX files
+```
+
+#### Plugin Troubleshooting
+
+- **Plugin not found**: Ensure you restart Calibre after installation
+- **Wrong version**: Use only the official plugin by jhowell
+- **Conversion fails**: Run `book-tool convert kfx --check-requirements`
+
 ### System Requirements
 
 - macOS or Linux (Unix-based paths)
 - Calibre CLI tools: `calibredb`, `ebook-convert`, `ebook-meta`
+- **KFX Output Plugin for Calibre** (for KFX conversion functionality)
 - Chrome WebDriver (managed automatically by webdriver-manager)
 
 ## Installation
@@ -146,6 +180,22 @@ This project uses an agent-based development workflow. See `CLAUDE.md` for techn
 2. **Chrome WebDriver issues**: The webdriver-manager should handle this automatically
 3. **librarian not found**: Install librarian CLI separately following their documentation
 4. **Permission errors**: Ensure proper file permissions for scripts and target directories
+
+### KFX Conversion Issues
+
+1. **KFX Plugin not installed**: Follow the KFX Prerequisites guide above
+2. **Plugin not detected**: Restart Calibre and verify with `calibre-customize -l | grep KFX`
+3. **Conversion errors**: Check system requirements with `book-tool convert kfx --check-requirements`
+4. **Wrong plugin version**: Uninstall and reinstall the official KFX Output plugin by jhowell
+
+### Test Directory
+
+For testing KFX functionality, you can use the test directory:
+```
+/Volumes/Entertainment/Bücher/Calibre-Ingest
+```
+
+This directory is configured for local validation of KFX conversion functionality.
 
 ### Support
 
