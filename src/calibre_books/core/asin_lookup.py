@@ -89,7 +89,7 @@ class ASINLookupService(LoggerMixin):
         self.logger.info(f"Looking up ASIN for '{title}' by {author or 'unknown author'}")
         
         if progress_callback:
-            progress_callback("Starting ASIN lookup...")
+            progress_callback(description="Starting ASIN lookup...")
         
         # Create cache key
         cache_key = f"{title}_{author or ''}".lower().strip()
@@ -127,7 +127,7 @@ class ASINLookupService(LoggerMixin):
                 
             try:
                 if progress_callback:
-                    progress_callback(f"Trying {method_name}...")
+                    progress_callback(description=f"Trying {method_name}...")
                     
                 self.logger.debug(f"Trying lookup method: {method_name}")
                 asin = method()
@@ -183,7 +183,7 @@ class ASINLookupService(LoggerMixin):
         self.logger.info(f"Looking up ASIN for ISBN: {isbn}")
         
         if progress_callback:
-            progress_callback("Starting ISBN lookup...")
+            progress_callback(description="Starting ISBN lookup...")
         
         # Create cache key
         cache_key = f"isbn_{isbn}".lower()
@@ -221,7 +221,7 @@ class ASINLookupService(LoggerMixin):
                 
             try:
                 if progress_callback:
-                    progress_callback(f"Trying {method_name}...")
+                    progress_callback(description=f"Trying {method_name}...")
                     
                 self.logger.debug(f"Trying lookup method: {method_name}")
                 asin = method()
@@ -321,7 +321,7 @@ class ASINLookupService(LoggerMixin):
                 
                 # Update progress if callback provided
                 if progress_callback:
-                    progress_callback(f"Submitted lookup {i+1}/{len(books)}: {book.title}")
+                    progress_callback(description=f"Submitted lookup {i+1}/{len(books)}: {book.title}")
                 
                 # Stagger requests to respect rate limits
                 time.sleep(self.rate_limit / parallel)
@@ -333,7 +333,7 @@ class ASINLookupService(LoggerMixin):
                     results.append(result)
                     
                     if progress_callback:
-                        progress_callback(f"Completed lookup {len(results)}/{len(books)}")
+                        progress_callback(description=f"Completed lookup {len(results)}/{len(books)}")
                         
                 except Exception as e:
                     self.logger.error(f"Batch lookup failed for future {i}: {e}")
@@ -363,7 +363,7 @@ class ASINLookupService(LoggerMixin):
         self.logger.info(f"Checking availability for ASIN: {asin}")
         
         if progress_callback:
-            progress_callback(f"Checking availability for {asin}...")
+            progress_callback(description=f"Checking availability for {asin}...")
         
         try:
             # Simple availability check by accessing Amazon product page
