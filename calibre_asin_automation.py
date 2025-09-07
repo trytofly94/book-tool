@@ -20,14 +20,24 @@ class CalibreASINAutomation:
         self.library_path = library_path
         self.setup_calibre_environment()
         
-        # Importiere Enhanced ASIN Lookup
+        # Importiere Enhanced ASIN Lookup und Localization Support
         sys.path.append(os.path.dirname(__file__))
         try:
             from enhanced_asin_lookup import ASINLookupService
             self.lookup_service = ASINLookupService()
+            print("✓ Enhanced ASIN Lookup Service initialized with localization support")
         except ImportError:
             print("⚠ Enhanced ASIN Lookup nicht verfügbar")
             self.lookup_service = None
+        
+        # Import Localization Metadata Extractor
+        try:
+            from localization_metadata_extractor import LocalizationMetadataExtractor
+            self.localization_extractor = LocalizationMetadataExtractor()
+            print("✓ Localization Metadata Extractor initialized")
+        except ImportError:
+            print("⚠ Localization Metadata Extractor nicht verfügbar")
+            self.localization_extractor = None
     
     def setup_calibre_environment(self):
         """Setup für Calibre CLI Environment"""
@@ -203,6 +213,96 @@ class CalibreASINAutomation:
         
         return {}
     
+    def get_book_file_path(self, book_id):
+        """
+        Get the file path of a book in the Calibre library for localization metadata extraction
+        """
+        try:
+            cmd = self.get_base_cmd() + ['list', '--fields', 'path', '--search', f'id:{book_id}']
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                lines = result.stdout.strip().split('\n')
+                # Skip header, get path
+                if len(lines) > 1 and lines[1].strip():
+                    relative_path = lines[1].strip()
+                    
+                    # Construct full path
+                    if self.library_path:
+                        full_path = os.path.join(self.library_path, relative_path)
+                    else:
+                        # Use default Calibre library location
+                        default_library = os.path.expanduser("~/Calibre Library")
+                        full_path = os.path.join(default_library, relative_path)
+                    
+                    # Look for common book file formats in the directory
+                    if os.path.exists(full_path):
+                        for filename in os.listdir(full_path):
+                            if filename.lower().endswith(('.epub', '.mobi', '.azw', '.azw3', '.pdf')):
+                                book_file_path = os.path.join(full_path, filename)
+                                print(f"  Gefunden: {filename}")
+                                return book_file_path
+        
+        except Exception as e:
+            print(f"Fehler beim Abrufen des Dateipfads für Buch {book_id}: {e}")
+        
+        return None
+    
+    def process_book_files_direct_asin(self, book_files, dry_run=False):
+        """
+        Direct ASIN lookup for book files (not in Calibre library yet)
+        Useful for testing localization with files in pipeline directories
+        
+        Args:
+            book_files: List of file paths to books
+            dry_run: If True, don't perform actual lookups
+        """
+        if not self.lookup_service:
+            print("✗ ASIN Lookup Service nicht verfügbar")
+            return {}
+        
+        print("=== Direct Book Files ASIN Lookup ===")
+        print(f"Processing {len(book_files)} book files with localization support...")
+        
+        asin_results = {}
+        
+        for book_file in book_files:
+            if not os.path.exists(book_file):
+                print(f"\n✗ Datei nicht gefunden: {book_file}")
+                continue
+            
+            filename = os.path.basename(book_file)
+            print(f"\n{'='*50}")
+            print(f"Verarbeite: {filename}")
+            print(f"{'='*50}")
+            
+            if not dry_run:
+                # Use enhanced lookup with localization
+                asin = self.lookup_service.lookup_multiple_sources(file_path=book_file)
+                
+                if asin:
+                    asin_results[filename] = asin
+                    print(f"✓ ASIN gefunden: {asin}")
+                else:
+                    print("✗ Keine ASIN gefunden")
+            else:
+                print(f"[DRY RUN] Würde ASIN suchen für: {filename}")
+        
+        # Summary
+        print(f"\n{'='*50}")
+        print("=== Zusammenfassung ===")
+        if not dry_run:
+            print(f"ASINs gefunden: {len(asin_results)}")
+            print(f"Fehlgeschlagen: {len(book_files) - len(asin_results)}")
+            if asin_results:
+                print("\nGefundene ASINs:")
+                for filename, asin in asin_results.items():
+                    print(f"  {filename}: {asin}")
+        else:
+            print(f"Würde {len(book_files)} Dateien verarbeiten")
+        
+        return asin_results
+    
     def process_library_automatic_asin(self, max_books=None, dry_run=False):
         """
         Automatische ASIN-Beschaffung für die gesamte Bibliothek
@@ -242,13 +342,28 @@ class CalibreASINAutomation:
             if isbn:
                 print(f"  ISBN gefunden: {isbn}")
             
-            # ASIN-Lookup
+            # Enhanced ASIN-Lookup with Localization Support
             if not dry_run:
-                asin = self.lookup_service.lookup_multiple_sources(
-                    isbn=isbn,
-                    title=title,
-                    author=authors
-                )
+                # Try to get book file path for localization
+                book_file_path = self.get_book_file_path(book_id)
+                
+                if book_file_path and self.localization_extractor:
+                    print(f"  Verwende Lokalisierung für: {os.path.basename(book_file_path)}")
+                    # Use localized lookup with file path
+                    asin = self.lookup_service.lookup_multiple_sources(
+                        isbn=isbn,
+                        title=title,
+                        author=authors,
+                        file_path=book_file_path
+                    )
+                else:
+                    print(f"  Verwende Standard-Lookup (Datei nicht verfügbar)")
+                    # Fallback to standard lookup
+                    asin = self.lookup_service.lookup_multiple_sources(
+                        isbn=isbn,
+                        title=title,
+                        author=authors
+                    )
                 
                 if asin:
                     asin_updates[book_id] = asin
@@ -359,9 +474,10 @@ def main():
         print("3. Automatische ASIN-Beschaffung (Dry Run)")
         print("4. Automatische ASIN-Beschaffung (Live)")
         print("5. Bibliotheks-Status exportieren")
-        print("6. Beenden")
+        print("6. Test Localization mit German Books")
+        print("7. Beenden")
         
-        choice = input("Auswahl (1-6): ").strip()
+        choice = input("Auswahl (1-7): ").strip()
         
         if choice == "1":
             automation.create_asin_custom_column()
@@ -386,6 +502,26 @@ def main():
             automation.export_library_asin_status()
         
         elif choice == "6":
+            # Test localization with German books
+            test_files = [
+                '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn1_kinder-des-nebels.epub',
+                '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_skyward1_ruf-der-sterne.epub',
+                '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn2_krieger-des-feuers.epub',
+            ]
+            
+            # Filter existing files
+            existing_files = [f for f in test_files if os.path.exists(f)]
+            
+            if existing_files:
+                print(f"Testing mit {len(existing_files)} deutschen Büchern...")
+                dry_run_choice = input("Dry Run? (y/n): ").strip().lower() == 'y'
+                automation.process_book_files_direct_asin(existing_files, dry_run=dry_run_choice)
+            else:
+                print("Keine Test-Dateien verfügbar in:")
+                for f in test_files:
+                    print(f"  {f}")
+        
+        elif choice == "7":
             break
         
         else:
