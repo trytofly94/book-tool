@@ -13,7 +13,7 @@ from unittest.mock import Mock, patch, MagicMock
 from typing import Dict, Any
 
 from calibre_books.config.manager import ConfigManager
-from calibre_books.core.downloader import KFXConverter
+from calibre_books.core.converter import FormatConverter
 from calibre_books.core.book import Book, ConversionResult, BookMetadata, BookFormat
 
 
