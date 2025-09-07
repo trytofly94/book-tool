@@ -15,7 +15,7 @@ import json
 import os
 import threading
 from pathlib import Path
-from typing import List, Optional, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, Dict, Any, TYPE_CHECKING, Tuple
 import concurrent.futures
 from bs4 import BeautifulSoup
 from selenium import webdriver
