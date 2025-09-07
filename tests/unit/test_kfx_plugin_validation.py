@@ -10,7 +10,6 @@ from unittest.mock import Mock, patch, MagicMock
 import pytest
 
 from calibre_books.core.converter import FormatConverter
-from calibre_books.core.downloader import KFXConverter
 from calibre_books.config.manager import ConfigManager
 
 
