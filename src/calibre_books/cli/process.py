@@ -55,6 +55,11 @@ def process(ctx: click.Context) -> None:
     is_flag=True,
     help="Check if files have ASIN metadata.",
 )
+@click.option(
+    "--validate-first",
+    is_flag=True,
+    help="Validate files before processing to detect corruption/issues.",
+)
 @click.pass_context
 def scan(
     ctx: click.Context,
@@ -63,6 +68,7 @@ def scan(
     format: Optional[str],
     output_json: Optional[Path],
     check_asin: bool,
+    validate_first: bool,
 ) -> None:
     """
     Scan directory for existing eBook files.
@@ -71,6 +77,7 @@ def scan(
         book-tool process scan --input-dir ./books
         book-tool process scan --input-dir ~/Downloads --format mobi
         book-tool process scan --recursive --format "mobi,epub"
+        book-tool process scan --input-dir ./books --validate-first
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -86,10 +93,42 @@ def scan(
             if format:
                 console.print(f"  Formats: {format}")
             console.print(f"  Check ASIN: {check_asin}")
+            console.print(f"  Validate first: {validate_first}")
             return
         
         # Parse format filter
         formats = format.split(',') if format else None
+        
+        # Validate files first if requested
+        if validate_first:
+            from calibre_books.core.file_validator import FileValidator
+            
+            console.print("[cyan]Validating files before processing...[/cyan]")
+            validator = FileValidator(config.get_config())
+            
+            with ProgressManager("Validating eBook files") as validation_progress:
+                validation_results = validator.validate_directory(
+                    input_dir,
+                    recursive=recursive,
+                    formats=formats,
+                    use_cache=True,
+                    progress_callback=validation_progress.update,
+                    parallel=True,
+                )
+            
+            # Check for validation failures
+            failed_files = [r for r in validation_results if not r.is_valid]
+            if failed_files:
+                console.print(f"[red]Found {len(failed_files)} invalid files:[/red]")
+                for result in failed_files[:5]:  # Show first 5
+                    console.print(f"  ✗ {result.file_path.name}: {'; '.join(result.errors)}")
+                
+                if len(failed_files) > 5:
+                    console.print(f"  ... and {len(failed_files) - 5} more")
+                
+                console.print(f"\n[yellow]Continuing with {len(validation_results) - len(failed_files)} valid files...[/yellow]")
+            else:
+                console.print(f"[green]All {len(validation_results)} files validated successfully[/green]")
         
         # Scan for eBook files
         with ProgressManager("Scanning for eBook files") as progress:
@@ -156,6 +195,11 @@ def scan(
     is_flag=True,
     help="Only check ASIN status, don't modify files.",
 )
+@click.option(
+    "--validate-first",
+    is_flag=True,
+    help="Validate files before processing to detect corruption/issues.",
+)
 @click.pass_context
 def prepare(
     ctx: click.Context,
@@ -163,6 +207,7 @@ def prepare(
     add_asin: bool,
     lookup: bool,
     check_only: bool,
+    validate_first: bool,
 ) -> None:
     """
     Prepare eBook files for Goodreads integration.
@@ -173,6 +218,7 @@ def prepare(
     Examples:
         book-tool process prepare -i ./books --add-asin --lookup
         book-tool process prepare -i ./books --check-only
+        book-tool process prepare -i ./books --validate-first --add-asin
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -189,7 +235,44 @@ def prepare(
             console.print(f"  Add ASIN: {add_asin}")
             console.print(f"  Lookup online: {lookup}")
             console.print(f"  Check only: {check_only}")
+            console.print(f"  Validate first: {validate_first}")
             return
+        
+        # Validate files first if requested
+        if validate_first:
+            from calibre_books.core.file_validator import FileValidator
+            
+            console.print("[cyan]Validating files before processing...[/cyan]")
+            validator = FileValidator(config.get_config())
+            
+            with ProgressManager("Validating eBook files") as validation_progress:
+                validation_results = validator.validate_directory(
+                    input_dir,
+                    recursive=True,
+                    use_cache=True,
+                    progress_callback=validation_progress.update,
+                    parallel=True,
+                )
+            
+            # Check for validation failures and abort if too many
+            failed_files = [r for r in validation_results if not r.is_valid]
+            if failed_files:
+                console.print(f"[red]Found {len(failed_files)} invalid files:[/red]")
+                for result in failed_files[:5]:  # Show first 5
+                    console.print(f"  ✗ {result.file_path.name}: {'; '.join(result.errors)}")
+                
+                if len(failed_files) > 5:
+                    console.print(f"  ... and {len(failed_files) - 5} more")
+                
+                # Only continue if the majority of files are valid
+                if len(failed_files) > len(validation_results) / 2:
+                    console.print("[red]Too many invalid files found. Aborting to prevent wasted processing.[/red]")
+                    console.print("[yellow]Use 'book-tool validate scan' to see detailed validation report.[/yellow]")
+                    ctx.exit(1)
+                
+                console.print(f"\n[yellow]Continuing with {len(validation_results) - len(failed_files)} valid files...[/yellow]")
+            else:
+                console.print(f"[green]All {len(validation_results)} files validated successfully[/green]")
         
         # Scan for eBook files
         with ProgressManager("Scanning eBook files") as progress:

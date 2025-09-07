@@ -6,9 +6,12 @@ ASINs, file paths, URLs, and other common data formats.
 """
 
 import re
+import subprocess
+import zipfile
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 from urllib.parse import urlparse
+from enum import Enum
 
 
 def validate_asin(asin: str) -> bool:
@@ -322,3 +325,465 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
             filename = filename[:max_length]
     
     return filename
+
+
+class ValidationStatus(Enum):
+    """File validation status codes."""
+    VALID = "valid"
+    INVALID = "invalid"
+    CORRUPTED = "corrupted"
+    EXTENSION_MISMATCH = "extension_mismatch"
+    UNSUPPORTED_FORMAT = "unsupported_format"
+    UNREADABLE = "unreadable"
+
+
+class ValidationResult:
+    """
+    Result of file validation.
+    
+    Attributes:
+        status: ValidationStatus indicating the result
+        file_path: Path to the validated file
+        format_detected: Detected file format (None if unknown)
+        format_expected: Expected format based on extension
+        errors: List of error messages
+        warnings: List of warning messages
+        details: Additional validation details
+    """
+    
+    def __init__(
+        self,
+        status: ValidationStatus,
+        file_path: Path,
+        format_detected: Optional[str] = None,
+        format_expected: Optional[str] = None,
+        errors: Optional[List[str]] = None,
+        warnings: Optional[List[str]] = None,
+        details: Optional[Dict[str, Any]] = None,
+    ):
+        self.status = status
+        self.file_path = file_path
+        self.format_detected = format_detected
+        self.format_expected = format_expected
+        self.errors = errors or []
+        self.warnings = warnings or []
+        self.details = details or {}
+    
+    @property
+    def is_valid(self) -> bool:
+        """Return True if file is valid."""
+        return self.status == ValidationStatus.VALID
+    
+    @property
+    def has_extension_mismatch(self) -> bool:
+        """Return True if there's an extension/content mismatch."""
+        return self.status == ValidationStatus.EXTENSION_MISMATCH
+    
+    def add_error(self, error: str) -> None:
+        """Add an error message."""
+        self.errors.append(error)
+    
+    def add_warning(self, warning: str) -> None:
+        """Add a warning message."""
+        self.warnings.append(warning)
+    
+    def add_detail(self, key: str, value: Any) -> None:
+        """Add a validation detail."""
+        self.details[key] = value
+    
+    def __str__(self) -> str:
+        """String representation of validation result."""
+        status_emoji = {
+            ValidationStatus.VALID: "✓",
+            ValidationStatus.INVALID: "✗", 
+            ValidationStatus.CORRUPTED: "⚠",
+            ValidationStatus.EXTENSION_MISMATCH: "⚠",
+            ValidationStatus.UNSUPPORTED_FORMAT: "?",
+            ValidationStatus.UNREADABLE: "✗",
+        }
+        
+        emoji = status_emoji.get(self.status, "?")
+        return f"{emoji} {self.file_path.name} ({self.status.value})"
+
+
+def detect_file_format(file_path: Path) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Detect actual file format using magic bytes and file command.
+    
+    Args:
+        file_path: Path to file to analyze
+        
+    Returns:
+        Tuple of (detected_format, mime_type) or (None, None) if detection fails
+    """
+    try:
+        # First try using Python's built-in magic number detection
+        magic_bytes = _detect_format_by_magic_bytes(file_path)
+        if magic_bytes:
+            return magic_bytes, None
+        
+        # Fall back to system 'file' command if available
+        try:
+            result = subprocess.run(
+                ['file', '--mime-type', '--brief', str(file_path)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                mime_type = result.stdout.strip()
+                format_name = _mime_to_format(mime_type)
+                return format_name, mime_type
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+            
+        return None, None
+        
+    except Exception:
+        return None, None
+
+
+def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
+    """Detect file format using magic bytes."""
+    try:
+        with open(file_path, 'rb') as f:
+            # Read first 16 bytes for magic number detection
+            header = f.read(16)
+        
+        if not header:
+            return None
+        
+        # EPUB (ZIP file starting with specific structure)
+        if header.startswith(b'PK\x03\x04'):
+            # Check if it's actually an EPUB by looking for mimetype file
+            try:
+                with zipfile.ZipFile(file_path, 'r') as zf:
+                    if 'mimetype' in zf.namelist():
+                        mimetype = zf.read('mimetype').decode('utf-8').strip()
+                        if mimetype == 'application/epub+zip':
+                            return 'epub'
+                # If it's a ZIP but not EPUB, it might be corrupted EPUB
+                return 'zip'
+            except zipfile.BadZipFile:
+                return 'corrupted_zip'
+        
+        # MOBI files
+        if header[60:68] == b'BOOKMOBI' or header[60:68] == b'TPZ3':
+            return 'mobi'
+        
+        # AZW/AZW3 files (similar to MOBI)
+        if b'TPZ' in header or header[60:64] == b'TPZ3':
+            return 'azw3'
+        
+        # PDF files
+        if header.startswith(b'%PDF'):
+            return 'pdf'
+        
+        # Microsoft Office documents (including Word docs misnamed as EPUB)
+        if header.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'):
+            return 'ms_office'
+        
+        # Office Open XML (modern Word docs)
+        if header.startswith(b'PK\x03\x04'):
+            try:
+                with zipfile.ZipFile(file_path, 'r') as zf:
+                    if '[Content_Types].xml' in zf.namelist():
+                        # This is an Office document
+                        if 'word/' in str(zf.namelist()):
+                            return 'docx'
+                        elif 'xl/' in str(zf.namelist()):
+                            return 'xlsx'
+                        elif 'ppt/' in str(zf.namelist()):
+                            return 'pptx'
+                        else:
+                            return 'office_document'
+            except zipfile.BadZipFile:
+                pass
+        
+        # Plain text
+        try:
+            header.decode('utf-8')
+            # If it decodes as UTF-8, it might be text
+            if all(32 <= ord(char) <= 126 or char in '\n\r\t' for char in header.decode('utf-8')):
+                return 'txt'
+        except UnicodeDecodeError:
+            pass
+        
+        return None
+        
+    except (OSError, IOError):
+        return None
+
+
+def _mime_to_format(mime_type: str) -> Optional[str]:
+    """Convert MIME type to format name."""
+    mime_mapping = {
+        'application/epub+zip': 'epub',
+        'application/x-mobipocket-ebook': 'mobi',
+        'application/pdf': 'pdf',
+        'text/plain': 'txt',
+        'application/zip': 'zip',
+        'application/msword': 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'application/vnd.ms-excel': 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+        'application/octet-stream': 'binary',
+    }
+    
+    return mime_mapping.get(mime_type)
+
+
+def check_extension_mismatch(file_path: Path) -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Check if file extension matches actual content.
+    
+    Args:
+        file_path: Path to file to check
+        
+    Returns:
+        Tuple of (has_mismatch, expected_format, detected_format)
+    """
+    # Get expected format from extension
+    suffix = file_path.suffix.lower()
+    expected_format = suffix.lstrip('.') if suffix else None
+    
+    # Detect actual format
+    detected_format, _ = detect_file_format(file_path)
+    
+    # Check for mismatch
+    if not expected_format or not detected_format:
+        return False, expected_format, detected_format
+    
+    # Some formats are compatible/related
+    compatible_formats = {
+        'epub': {'epub', 'zip'},  # EPUB is a ZIP file
+        'mobi': {'mobi', 'azw', 'azw3'},  # Related Amazon formats
+        'azw': {'mobi', 'azw', 'azw3'},
+        'azw3': {'mobi', 'azw', 'azw3'},
+    }
+    
+    expected_set = compatible_formats.get(expected_format, {expected_format})
+    has_mismatch = detected_format not in expected_set
+    
+    return has_mismatch, expected_format, detected_format
+
+
+def validate_epub_structure(file_path: Path) -> ValidationResult:
+    """
+    Validate EPUB file structure and required components.
+    
+    Args:
+        file_path: Path to EPUB file to validate
+        
+    Returns:
+        ValidationResult with detailed validation information
+    """
+    result = ValidationResult(
+        status=ValidationStatus.VALID,
+        file_path=file_path,
+        format_expected='epub'
+    )
+    
+    try:
+        # Check if it's a valid ZIP file first
+        with zipfile.ZipFile(file_path, 'r') as zf:
+            namelist = zf.namelist()
+            
+            # Check for required mimetype file
+            if 'mimetype' not in namelist:
+                result.status = ValidationStatus.INVALID
+                result.add_error("Missing required 'mimetype' file")
+            else:
+                # Validate mimetype content
+                try:
+                    mimetype = zf.read('mimetype').decode('utf-8').strip()
+                    if mimetype != 'application/epub+zip':
+                        result.status = ValidationStatus.INVALID
+                        result.add_error(f"Invalid mimetype: {mimetype}")
+                    result.add_detail('mimetype', mimetype)
+                except Exception as e:
+                    result.status = ValidationStatus.INVALID
+                    result.add_error(f"Cannot read mimetype: {e}")
+            
+            # Check for META-INF/container.xml
+            if 'META-INF/container.xml' not in namelist:
+                result.status = ValidationStatus.INVALID
+                result.add_error("Missing required 'META-INF/container.xml'")
+            else:
+                result.add_detail('has_container_xml', True)
+            
+            # Check for at least one .opf file (package document)
+            opf_files = [name for name in namelist if name.endswith('.opf')]
+            if not opf_files:
+                result.status = ValidationStatus.INVALID
+                result.add_error("No OPF (package document) file found")
+            else:
+                result.add_detail('opf_files', opf_files)
+            
+            # Basic structure checks
+            result.add_detail('total_files', len(namelist))
+            result.add_detail('has_images', any(name.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.svg')) for name in namelist))
+            result.add_detail('has_css', any(name.lower().endswith('.css') for name in namelist))
+            result.add_detail('has_html', any(name.lower().endswith(('.html', '.xhtml')) for name in namelist))
+            
+            # If we had errors, mark as detected format
+            result.format_detected = 'epub' if result.status == ValidationStatus.VALID else 'corrupted_epub'
+            
+    except zipfile.BadZipFile:
+        result.status = ValidationStatus.CORRUPTED
+        result.add_error("File is not a valid ZIP archive")
+        result.format_detected = 'corrupted_zip'
+    except Exception as e:
+        result.status = ValidationStatus.UNREADABLE
+        result.add_error(f"Cannot read file: {e}")
+    
+    return result
+
+
+def validate_mobi_header(file_path: Path) -> ValidationResult:
+    """
+    Validate MOBI file header and basic structure.
+    
+    Args:
+        file_path: Path to MOBI file to validate
+        
+    Returns:
+        ValidationResult with detailed validation information
+    """
+    result = ValidationResult(
+        status=ValidationStatus.VALID,
+        file_path=file_path,
+        format_expected='mobi'
+    )
+    
+    try:
+        with open(file_path, 'rb') as f:
+            # Read enough bytes to check MOBI header
+            header = f.read(1024)
+            
+            if len(header) < 68:
+                result.status = ValidationStatus.INVALID
+                result.add_error("File too small to be a valid MOBI file")
+                return result
+            
+            # Check for MOBI magic signatures
+            # Standard MOBI signature at offset 60
+            mobi_signature = header[60:68]
+            
+            if mobi_signature == b'BOOKMOBI':
+                result.format_detected = 'mobi'
+                result.add_detail('mobi_type', 'BOOKMOBI')
+            elif mobi_signature == b'TPZ3':
+                result.format_detected = 'azw3'  # Kindle AZW3 format
+                result.add_detail('mobi_type', 'TPZ3')
+            else:
+                # Check for other Kindle signatures
+                if b'TPZ' in header[:100]:
+                    result.format_detected = 'azw'
+                    result.add_detail('mobi_type', 'TPZ')
+                else:
+                    result.status = ValidationStatus.INVALID
+                    result.add_error("Invalid MOBI signature - not a valid MOBI/AZW file")
+                    return result
+            
+            # Extract basic header information
+            try:
+                # Read database name (bytes 0-31)
+                db_name = header[:32].rstrip(b'\x00').decode('utf-8', errors='ignore')
+                result.add_detail('database_name', db_name)
+                
+                # Read creation date (bytes 36-39)
+                creation_date = int.from_bytes(header[36:40], byteorder='big')
+                result.add_detail('creation_date', creation_date)
+                
+                # Read record count (bytes 76-77)
+                if len(header) >= 78:
+                    record_count = int.from_bytes(header[76:78], byteorder='big')
+                    result.add_detail('record_count', record_count)
+                    
+                    if record_count == 0:
+                        result.add_warning("MOBI file has no records")
+                
+            except Exception as e:
+                result.add_warning(f"Could not parse header details: {e}")
+    
+    except Exception as e:
+        result.status = ValidationStatus.UNREADABLE
+        result.add_error(f"Cannot read file: {e}")
+    
+    return result
+
+
+def validate_file_format(file_path: Path) -> ValidationResult:
+    """
+    Comprehensive file format validation.
+    
+    Args:
+        file_path: Path to file to validate
+        
+    Returns:
+        ValidationResult with comprehensive validation information
+    """
+    # Basic file existence check
+    if not file_path.exists():
+        return ValidationResult(
+            status=ValidationStatus.UNREADABLE,
+            file_path=file_path,
+            errors=["File does not exist"]
+        )
+    
+    if not file_path.is_file():
+        return ValidationResult(
+            status=ValidationStatus.UNREADABLE,
+            file_path=file_path,
+            errors=["Path is not a regular file"]
+        )
+    
+    # Check file size (empty files are invalid)
+    try:
+        file_size = file_path.stat().st_size
+        if file_size == 0:
+            return ValidationResult(
+                status=ValidationStatus.INVALID,
+                file_path=file_path,
+                errors=["File is empty"]
+            )
+    except OSError as e:
+        return ValidationResult(
+            status=ValidationStatus.UNREADABLE,
+            file_path=file_path,
+            errors=[f"Cannot read file stats: {e}"]
+        )
+    
+    # Check extension mismatch
+    has_mismatch, expected_format, detected_format = check_extension_mismatch(file_path)
+    
+    if has_mismatch:
+        return ValidationResult(
+            status=ValidationStatus.EXTENSION_MISMATCH,
+            file_path=file_path,
+            format_expected=expected_format,
+            format_detected=detected_format,
+            errors=[f"Extension mismatch: expected {expected_format}, detected {detected_format}"]
+        )
+    
+    # Format-specific validation
+    if expected_format == 'epub' or detected_format == 'epub':
+        return validate_epub_structure(file_path)
+    elif expected_format in ['mobi', 'azw', 'azw3'] or detected_format in ['mobi', 'azw', 'azw3']:
+        return validate_mobi_header(file_path)
+    else:
+        # Generic validation for other formats
+        result = ValidationResult(
+            status=ValidationStatus.VALID,
+            file_path=file_path,
+            format_expected=expected_format,
+            format_detected=detected_format
+        )
+        
+        # Add basic file info
+        result.add_detail('file_size', file_size)
+        result.add_detail('readable', True)
+        
+        return result

@@ -26,6 +26,7 @@ from .convert import convert
 from .config import config as config_cmd
 from .library import library
 from .download import download
+from .validate import validate
 
 console = Console()
 
@@ -130,12 +131,12 @@ def main(
             console.print(f"Version: {__version__}")
             console.print("\nUse --help for more information or specify a command:")
             console.print("  • [bold]process[/bold] - Process existing eBook files")
+            console.print("  • [bold]validate[/bold] - Validate eBook files for corruption")
             console.print("  • [bold]asin[/bold] - Manage ASINs and metadata")
             console.print("  • [bold]convert[/bold] - Convert book formats")
             console.print("  • [bold]download[/bold] - Download books from various sources")
             console.print("  • [bold]library[/bold] - Manage Calibre library")
             console.print("  • [bold]config[/bold] - Configuration management")
-            console.print("  • [bold]download[/bold] - Download books from various sources")
             console.print("\nExample: book-tool process scan -i ./books")
             
     except Exception as e:
@@ -153,7 +154,7 @@ main.add_command(convert)
 main.add_command(download)
 main.add_command(library)
 main.add_command(config_cmd)
-main.add_command(download)
+main.add_command(validate)
 
 
 def cli_entry_point() -> None:
