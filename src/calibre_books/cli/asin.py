@@ -81,7 +81,7 @@ def lookup(
         ctx.exit(1)
     
     try:
-        lookup_service = ASINLookupService(config.get_asin_config())
+        lookup_service = ASINLookupService(config)
         
         if dry_run:
             console.print("[yellow]DRY RUN: Would lookup ASIN for:[/yellow]")
@@ -189,8 +189,8 @@ def batch_update(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        calibre = CalibreIntegration(config.get_calibre_config())
-        lookup_service = ASINLookupService(config.get_asin_config())
+        calibre = CalibreIntegration(config)
+        lookup_service = ASINLookupService(config)
         
         # Get list of books to process
         books_to_process = calibre.get_books_for_asin_update(
@@ -271,7 +271,7 @@ def cache(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        lookup_service = ASINLookupService(config.get_asin_config())
+        lookup_service = ASINLookupService(config)
         cache_manager = lookup_service.cache_manager
         
         if show_stats:
@@ -343,7 +343,7 @@ def verify(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        lookup_service = ASINLookupService(config.get_asin_config())
+        lookup_service = ASINLookupService(config)
         
         if dry_run:
             console.print(f"[yellow]DRY RUN: Would verify ASIN: {asin}[/yellow]")

@@ -56,7 +56,7 @@ def status(
     config = ctx.obj["config"]
     
     try:
-        calibre = CalibreIntegration(config.get_calibre_config())
+        calibre = CalibreIntegration(config)
         
         # Get library statistics
         with ProgressManager("Analyzing library") as progress:
@@ -194,7 +194,7 @@ def cleanup(
         return
     
     try:
-        calibre = CalibreIntegration(config.get_calibre_config())
+        calibre = CalibreIntegration(config)
         
         if dry_run:
             console.print("[yellow]DRY RUN: Would perform library cleanup:[/yellow]")
@@ -317,7 +317,7 @@ def export(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        calibre = CalibreIntegration(config.get_calibre_config())
+        calibre = CalibreIntegration(config)
         
         if dry_run:
             console.print("[yellow]DRY RUN: Would export library:[/yellow]")
@@ -395,7 +395,7 @@ def search(
     config = ctx.obj["config"]
     
     try:
-        calibre = CalibreIntegration(config.get_calibre_config())
+        calibre = CalibreIntegration(config)
         
         with ProgressManager("Searching library") as progress:
             results = calibre.search_library(

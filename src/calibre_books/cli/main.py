@@ -15,9 +15,9 @@ import click
 from rich.console import Console
 from rich.logging import RichHandler
 
-from calibre_books import __version__
-from calibre_books.config.manager import ConfigManager
-from calibre_books.utils.logging import setup_logging
+from .. import __version__
+from ..config.manager import ConfigManager
+from ..utils.logging import setup_logging
 
 # Import command modules
 from .process import process

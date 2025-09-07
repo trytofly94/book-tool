@@ -7,10 +7,13 @@ using Calibre's conversion tools, with specialized support for KFX conversion.
 
 import logging
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 
 from ..utils.logging import LoggerMixin
 from .book import BookFormat, ConversionResult
+
+if TYPE_CHECKING:
+    from ..config.manager import ConfigManager
 
 
 class FormatConverter(LoggerMixin):
@@ -21,28 +24,70 @@ class FormatConverter(LoggerMixin):
     using Calibre's conversion capabilities.
     """
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config_manager: 'ConfigManager'):
         """
         Initialize format converter.
         
         Args:
-            config: Conversion configuration dictionary
+            config_manager: ConfigManager instance for accessing configuration
         """
         super().__init__()
-        self.config = config
-        self.max_parallel = config.get('max_parallel', 4)
-        self.output_path = Path(config.get('output_path', '~/Converted-Books')).expanduser()
-        self.kfx_plugin_required = config.get('kfx_plugin_required', True)
+        self.config_manager = config_manager
+        
+        # Get conversion-specific configuration with error handling
+        try:
+            conversion_config = config_manager.get_conversion_config()
+            self.max_parallel = conversion_config.get('max_parallel', 4)
+            self.output_path = Path(conversion_config.get('output_path', '~/Converted-Books')).expanduser()
+            self.kfx_plugin_required = conversion_config.get('kfx_plugin_required', True)
+            
+            self.logger.debug(f"Initialized FormatConverter with max_parallel: {self.max_parallel}, output: {self.output_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to load conversion config, using defaults: {e}")
+            self.max_parallel = 4
+            self.output_path = Path('~/Converted-Books').expanduser()
+            self.kfx_plugin_required = True
         
         self.logger.info(f"Initialized format converter with output path: {self.output_path}")
     
     def validate_kfx_plugin(self) -> bool:
-        """Validate that KFX Input plugin is available in Calibre."""
+        """Validate that KFX Output plugin is available in Calibre."""
+        import subprocess
+        import re
+        
         self.logger.info("Validating KFX plugin availability")
         
-        # TODO: Implement actual plugin validation
-        # This is a placeholder implementation
-        return True
+        try:
+            # Run calibre-customize to list plugins
+            result = subprocess.run(
+                ['calibre-customize', '-l'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                self.logger.error(f"Failed to list Calibre plugins: {result.stderr}")
+                return False
+            
+            # Check for KFX Output plugin
+            kfx_pattern = r'KFX Output.*Convert ebooks to KFX format'
+            if re.search(kfx_pattern, result.stdout, re.IGNORECASE):
+                self.logger.info("KFX Output plugin found and available")
+                return True
+            else:
+                self.logger.warning("KFX Output plugin not found. Please install it via Calibre Preferences → Plugins")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self.logger.error("Timeout while checking Calibre plugins")
+            return False
+        except FileNotFoundError:
+            self.logger.error("calibre-customize command not found. Please install Calibre CLI tools")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error checking KFX plugin: {e}")
+            return False
     
     def convert_kfx_batch(
         self,

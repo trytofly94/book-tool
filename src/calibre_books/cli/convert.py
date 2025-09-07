@@ -79,6 +79,16 @@ def kfx(
     try:
         converter = KFXConverter(config)
         
+        # Check KFX plugin before attempting conversion
+        if not converter.validate_kfx_plugin():
+            console.print("[red]Error: KFX Output plugin not found![/red]")
+            console.print("Please install the KFX Output plugin:")
+            console.print("1. Open Calibre → Preferences → Plugins")
+            console.print("2. Get new plugins → Search 'KFX Output'")
+            console.print("3. Install plugin by jhowell and restart Calibre")
+            console.print("\nFor details: https://github.com/trytofly94/book-tool#kfx-conversion-prerequisites")
+            raise click.ClickException("KFX Output plugin required for KFX conversion")
+        
         # Check system requirements if requested
         if check_requirements:
             console.print("[cyan]Checking KFX conversion requirements...[/cyan]")
@@ -231,6 +241,16 @@ def single(
         if format == 'kfx':
             # Use KFX converter
             converter = KFXConverter(config)
+            
+            # Check KFX plugin before attempting conversion
+            if not converter.validate_kfx_plugin():
+                console.print("[red]Error: KFX Output plugin not found![/red]")
+                console.print("Please install the KFX Output plugin:")
+                console.print("1. Open Calibre → Preferences → Plugins")
+                console.print("2. Get new plugins → Search 'KFX Output'")
+                console.print("3. Install plugin by jhowell and restart Calibre")
+                console.print("\nFor details: https://github.com/trytofly94/book-tool#kfx-conversion-prerequisites")
+                raise click.ClickException("KFX Output plugin required for KFX conversion")
             
             # Create a Book object from the file
             scanner = FileScanner(config)
