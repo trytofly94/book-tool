@@ -59,7 +59,7 @@ class TestKFXConversionCLIPluginValidation(TestKFXDocumentationIntegration):
         """Test that KFX conversion provides helpful error message when plugin missing."""
         
         # Mock the KFXConverter to simulate missing plugin
-        with patch('calibre_books.cli.convert.KFXConverter') as mock_converter_class:
+        with patch('calibre_books.cli.convert.FormatConverter') as mock_converter_class:
             mock_converter = Mock()
             mock_converter_class.return_value = mock_converter
             mock_converter.validate_kfx_plugin.return_value = False
@@ -88,7 +88,7 @@ class TestKFXConversionCLIPluginValidation(TestKFXDocumentationIntegration):
         
         # Mock FileScanner and KFXConverter 
         with patch('calibre_books.cli.convert.FileScanner') as mock_scanner_class, \
-             patch('calibre_books.cli.convert.KFXConverter') as mock_converter_class, \
+             patch('calibre_books.cli.convert.FormatConverter') as mock_converter_class, \
              patch('calibre_books.cli.convert.ProgressManager') as mock_progress:
             
             # Setup mocks
@@ -123,7 +123,7 @@ class TestKFXConversionCLIPluginValidation(TestKFXDocumentationIntegration):
         test_file = temp_input_dir / "test.epub"
         test_file.touch()
         
-        with patch('calibre_books.cli.convert.KFXConverter') as mock_converter_class:
+        with patch('calibre_books.cli.convert.FormatConverter') as mock_converter_class:
             mock_converter = Mock()
             mock_converter_class.return_value = mock_converter
             mock_converter.validate_kfx_plugin.return_value = False
@@ -146,7 +146,7 @@ class TestKFXConversionCLIPluginValidation(TestKFXDocumentationIntegration):
     ):
         """Test that --check-requirements shows KFX plugin status."""
         
-        with patch('calibre_books.cli.convert.KFXConverter') as mock_converter_class:
+        with patch('calibre_books.cli.convert.FormatConverter') as mock_converter_class:
             mock_converter = Mock()
             mock_converter_class.return_value = mock_converter
             mock_converter.validate_kfx_plugin.return_value = True
@@ -326,7 +326,7 @@ class TestEndToEndValidation(TestKFXDocumentationIntegration):
             assert "Warning: KFX Output plugin not detected" in config_result.output
         
         # Step 2: Attempt KFX conversion (should fail with helpful message)
-        with patch('calibre_books.cli.convert.KFXConverter') as mock_converter_class:
+        with patch('calibre_books.cli.convert.FormatConverter') as mock_converter_class:
             mock_converter = Mock()
             mock_converter_class.return_value = mock_converter
             mock_converter.validate_kfx_plugin.return_value = False

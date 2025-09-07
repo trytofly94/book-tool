@@ -71,7 +71,7 @@ Repository = "https://github.com/trytofly94/book-tool.git"
 "Bug Tracker" = "https://github.com/trytofly94/book-tool/issues"
 
 [project.scripts]
-book-tool = "calibre_books.cli.main:main"
+book-tool = "calibre_books.cli.main:cli_entry_point"
 
 [tool.setuptools.packages.find]
 where = ["src"]

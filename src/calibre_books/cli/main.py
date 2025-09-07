@@ -135,6 +135,7 @@ def main(
             console.print("  • [bold]download[/bold] - Download books from various sources")
             console.print("  • [bold]library[/bold] - Manage Calibre library")
             console.print("  • [bold]config[/bold] - Configuration management")
+            console.print("  • [bold]download[/bold] - Download books from various sources")
             console.print("\nExample: book-tool process scan -i ./books")
             
     except Exception as e:
@@ -152,6 +153,7 @@ main.add_command(convert)
 main.add_command(download)
 main.add_command(library)
 main.add_command(config_cmd)
+main.add_command(download)
 
 
 def cli_entry_point() -> None:
