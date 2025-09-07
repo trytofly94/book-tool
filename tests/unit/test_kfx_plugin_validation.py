@@ -37,7 +37,7 @@ class TestKFXPluginValidation:
     @pytest.fixture
     def kfx_converter(self, mock_config_manager):
         """KFXConverter instance with mocked config."""
-        with patch('calibre_books.core.downloader.ParallelKFXConverter', create=True):
+        with patch('parallel_kfx_converter.ParallelKFXConverter', create=True):
             return KFXConverter(mock_config_manager)
 
 

@@ -26,12 +26,24 @@ class TestASINLookupService:
             'sources': ['amazon', 'goodreads', 'openlibrary'],
             'rate_limit': 0.1  # Fast rate limit for testing
         }
+        
+        # Create mock config manager
+        from unittest.mock import Mock
+        self.mock_config_manager = Mock()
+        self.mock_config_manager.get_asin_config.return_value = self.test_config
+        
+    def create_mock_config_manager(self, config_dict):
+        """Create a mock config manager with the given config dict."""
+        from unittest.mock import Mock
+        mock_config_manager = Mock()
+        mock_config_manager.get_asin_config.return_value = config_dict
+        return mock_config_manager
     
     def test_asin_lookup_service_init(self):
         """Test ASINLookupService initialization."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
-        assert service.config == self.test_config
+        assert service.config_manager == self.mock_config_manager
         assert service.sources == ['amazon', 'goodreads', 'openlibrary']
         assert service.rate_limit == 0.1
         assert isinstance(service.cache_manager, CacheManager)
@@ -39,7 +51,7 @@ class TestASINLookupService:
     
     def test_validate_asin_format(self):
         """Test ASIN format validation."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Valid ASINs (validation function accepts any alphanumeric, not just B-prefixed)
         assert service.validate_asin("B00ZVA3XL6") is True
@@ -56,7 +68,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_lookup_by_isbn_direct_success(self, mock_get):
         """Test successful direct ISBN lookup."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock successful redirect to ASIN
         mock_response = Mock()
@@ -76,7 +88,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_lookup_by_isbn_direct_no_asin(self, mock_get):
         """Test direct ISBN lookup with no ASIN found."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock response without ASIN in URL
         mock_response = Mock()
@@ -91,7 +103,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_lookup_by_isbn_direct_exception(self, mock_get):
         """Test direct ISBN lookup with network exception."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock network exception
         mock_get.side_effect = Exception("Network error")
@@ -103,7 +115,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_amazon_search_success(self, mock_get):
         """Test successful Amazon search lookup."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock Amazon search response with ASIN
         mock_response = Mock()
@@ -125,7 +137,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_amazon_search_no_results(self, mock_get):
         """Test Amazon search with no results."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock empty Amazon response
         mock_response = Mock()
@@ -140,7 +152,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_google_books_lookup_success(self, mock_get):
         """Test successful Google Books API lookup."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock Google Books API response
         mock_response = Mock()
@@ -171,7 +183,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_openlibrary_lookup_success(self, mock_get):
         """Test successful OpenLibrary API lookup."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock OpenLibrary API response
         mock_response = Mock()
@@ -201,7 +213,7 @@ class TestASINLookupService:
             config = self.test_config.copy()
             config['cache_path'] = str(cache_path)
             
-            service = ASINLookupService(config)
+            service = ASINLookupService(self.create_mock_config_manager(config))
             
             # Pre-populate cache
             cache_key = "the way of kings_brandon sanderson"
@@ -220,11 +232,16 @@ class TestASINLookupService:
     def test_lookup_by_title_with_amazon_success(self, mock_amazon):
         """Test lookup by title with Amazon success."""
         with tempfile.TemporaryDirectory() as temp_dir:
+            from unittest.mock import Mock
             cache_path = Path(temp_dir) / "test_cache.json"
             config = self.test_config.copy()
             config['cache_path'] = str(cache_path)
             
-            service = ASINLookupService(config)
+            # Create mock config manager for this test
+            mock_config_manager = Mock()
+            mock_config_manager.get_asin_config.return_value = config
+            
+            service = ASINLookupService(mock_config_manager)
             
             # Mock successful Amazon lookup
             mock_amazon.return_value = "B00ZVA3XL6"
@@ -250,7 +267,7 @@ class TestASINLookupService:
             config = self.test_config.copy()
             config['cache_path'] = str(cache_path)
             
-            service = ASINLookupService(config)
+            service = ASINLookupService(self.create_mock_config_manager(config))
             
             # Mock all sources returning None
             mock_amazon.return_value = None
@@ -271,7 +288,7 @@ class TestASINLookupService:
             config = self.test_config.copy()
             config['cache_path'] = str(cache_path)
             
-            service = ASINLookupService(config)
+            service = ASINLookupService(self.create_mock_config_manager(config))
             
             # Pre-populate cache
             cache_key = "isbn_9780765326355"
@@ -296,7 +313,7 @@ class TestASINLookupService:
             config['cache_path'] = str(cache_path)
             config['sources'] = ['isbn-direct']  # Use isbn-direct source
             
-            service = ASINLookupService(config)
+            service = ASINLookupService(self.create_mock_config_manager(config))
             
             # Mock all methods, but only isbn-direct should return a valid result
             mock_direct.return_value = "B00ZVA3XL6"
@@ -313,7 +330,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_check_availability_available(self, mock_get):
         """Test ASIN availability check - available."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock successful availability response
         mock_response = Mock()
@@ -331,7 +348,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_check_availability_unavailable(self, mock_get):
         """Test ASIN availability check - unavailable."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock unavailable response
         mock_response = Mock()
@@ -347,7 +364,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_check_availability_not_found(self, mock_get):
         """Test ASIN availability check - not found."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock 404 response
         mock_response = Mock()
@@ -363,7 +380,7 @@ class TestASINLookupService:
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_check_availability_exception(self, mock_get):
         """Test ASIN availability check with exception."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Mock network exception
         mock_get.side_effect = Exception("Network error")
@@ -378,7 +395,7 @@ class TestASINLookupService:
     @patch.object(ASINLookupService, 'lookup_by_title')
     def test_batch_update_with_mixed_books(self, mock_lookup_title, mock_lookup_isbn):
         """Test batch update with books having both ISBNs and non-ISBN books."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Create test books
         metadata_with_isbn = BookMetadata(
@@ -441,7 +458,7 @@ class TestASINLookupService:
     @patch.object(ASINLookupService, 'lookup_by_title')
     def test_batch_update_with_exception(self, mock_lookup_title):
         """Test batch update with exception in one lookup."""
-        service = ASINLookupService(self.test_config)
+        service = ASINLookupService(self.mock_config_manager)
         
         # Create test book
         metadata = BookMetadata(title="Test Book", author="Test Author")
@@ -464,7 +481,7 @@ class TestASINLookupService:
             config = self.test_config.copy()
             config['cache_path'] = str(cache_path)
             
-            service = ASINLookupService(config)
+            service = ASINLookupService(self.create_mock_config_manager(config))
             
             with patch.object(service, '_lookup_via_amazon_search') as mock_amazon, \
                  patch.object(service, '_lookup_via_google_books') as mock_google, \
@@ -496,7 +513,7 @@ class TestASINLookupService:
             config = self.test_config.copy()
             config['cache_path'] = str(cache_path)
             
-            service = ASINLookupService(config)
+            service = ASINLookupService(self.create_mock_config_manager(config))
             
             # Mock progress callback
             progress_callback = Mock()

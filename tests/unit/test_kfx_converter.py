@@ -310,7 +310,10 @@ class TestKFXConverterSystemRequirements:
     def test_check_system_requirements_all_available(self, mock_run):
         """Test system requirements check when all tools are available."""
         # Mock successful subprocess calls
-        mock_run.return_value = Mock(returncode=0)
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout="KFX Output (2, 17, 1) - Convert ebooks to KFX format"
+        )
         
         config_data = {'conversion': {'max_parallel': 4}}
         config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)

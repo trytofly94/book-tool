@@ -17,8 +17,8 @@ class TestCLIEntryPoint:
         result = runner.invoke(main, ['--help'])
         
         assert result.exit_code == 0
-        assert 'Calibre Books CLI Tool' in result.output
-        assert 'download' in result.output
+        assert 'Book Tool - Professional eBook processing' in result.output
+        assert 'process' in result.output
         assert 'asin' in result.output
         assert 'convert' in result.output
         assert 'config' in result.output
@@ -29,7 +29,7 @@ class TestCLIEntryPoint:
         result = runner.invoke(main, ['--version'])
         
         assert result.exit_code == 0
-        assert 'calibre-books version' in result.output
+        assert 'book-tool version' in result.output
     
     def test_cli_no_command_shows_help(self):
         """Test that running without command shows help."""
@@ -37,20 +37,20 @@ class TestCLIEntryPoint:
         result = runner.invoke(main, [])
         
         assert result.exit_code == 0
-        assert 'Calibre Books CLI Tool' in result.output
-        assert 'download' in result.output
+        assert 'Book Tool' in result.output
+        assert 'process' in result.output
 
 
 class TestCommandGroups:
     """Test individual command groups."""
     
-    def test_download_help(self):
-        """Test download command help."""
+    def test_process_help(self):
+        """Test process command help."""
         runner = CliRunner()
-        result = runner.invoke(main, ['download', '--help'])
+        result = runner.invoke(main, ['process', '--help'])
         
         assert result.exit_code == 0
-        assert 'Download books from various sources' in result.output
+        assert 'Process existing eBook files' in result.output
     
     def test_asin_help(self):
         """Test asin command help."""
