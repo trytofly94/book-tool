@@ -77,7 +77,7 @@ class TestKFXConversionCLIIntegration:
             runner = CliRunner()
             
             # Mock the ParallelKFXConverter to avoid external dependencies
-            with patch('calibre_books.core.downloader.ParallelKFXConverter') as mock_converter_class:
+            with patch('parallel_kfx_converter.ParallelKFXConverter') as mock_converter_class:
                 mock_converter = Mock()
                 mock_converter.check_kfx_plugin.return_value = True
                 mock_converter.check_kindle_previewer.return_value = True
@@ -148,7 +148,7 @@ class TestKFXConversionCLIIntegration:
         try:
             runner = CliRunner()
             
-            with patch('calibre_books.core.downloader.ParallelKFXConverter') as mock_converter_class:
+            with patch('parallel_kfx_converter.ParallelKFXConverter') as mock_converter_class:
                 mock_converter = Mock()
                 mock_converter_class.return_value = mock_converter
                 
@@ -194,7 +194,7 @@ class TestKFXConversionCLIIntegration:
         try:
             runner = CliRunner()
             
-            with patch('calibre_books.core.downloader.ParallelKFXConverter') as mock_converter_class:
+            with patch('parallel_kfx_converter.ParallelKFXConverter') as mock_converter_class:
                 mock_converter = Mock()
                 mock_converter_class.return_value = mock_converter
                 
@@ -232,7 +232,7 @@ class TestKFXConversionCLIIntegration:
             # Create a click context with ConfigManager
             config_manager = ConfigManager(config_file)
             
-            with patch('calibre_books.core.downloader.ParallelKFXConverter') as mock_converter_class:
+            with patch('parallel_kfx_converter.ParallelKFXConverter') as mock_converter_class:
                 mock_converter = Mock()
                 mock_converter.check_kfx_plugin.return_value = True
                 mock_converter.check_kindle_previewer.return_value = True
@@ -317,7 +317,7 @@ class TestKFXConversionConfigManagerFlow:
         """
         config_data = {
             'conversion': {
-                'max_workers': 6,
+                'max_parallel': 6,
                 'output_path': '~/test-converted',
                 'kfx_plugin_required': True
             },
@@ -349,11 +349,11 @@ class TestKFXConversionConfigManagerFlow:
             assert hasattr(calibre_config, 'get')
             
             # Step 4: Test the specific pattern that was failing
-            max_workers = conversion_config.get('max_workers', 4)
+            max_workers = conversion_config.get('max_parallel', 4)
             assert max_workers == 6
             
             # Step 5: KFXConverter receives ConfigManager and uses it correctly
-            with patch('calibre_books.core.downloader.ParallelKFXConverter') as mock_converter_class:
+            with patch('parallel_kfx_converter.ParallelKFXConverter') as mock_converter_class:
                 mock_converter = Mock()
                 mock_converter_class.return_value = mock_converter
                 
@@ -372,7 +372,7 @@ class TestKFXConversionConfigManagerFlow:
         """Test that CLI properly passes ConfigManager to converter."""
         config_file = tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False)
         yaml.dump({
-            'conversion': {'max_workers': 3},
+            'conversion': {'max_parallel': 3},
             'calibre': {'library_path': '~/test'}
         }, config_file)
         config_file.close()
@@ -396,8 +396,13 @@ class TestKFXConversionConfigManagerFlow:
                 mock_converter.calibre_config = {}
                 return mock_converter
             
-            with patch('calibre_books.core.downloader.KFXConverter') as mock_kfx_class:
-                mock_kfx_class.side_effect = capture_converter_init
+            with patch('calibre_books.cli.convert.KFXConverter') as mock_kfx_class:
+                def mock_init(config_manager):
+                    mock_converter = capture_converter_init(config_manager)
+                    mock_converter.validate_kfx_plugin.return_value = True  # Mock validation success
+                    return mock_converter
+                    
+                mock_kfx_class.side_effect = mock_init
                 
                 with patch('calibre_books.core.file_scanner.FileScanner.scan_directory', return_value=[]):
                     result = runner.invoke(main, [
@@ -416,7 +421,7 @@ class TestKFXConversionConfigManagerFlow:
                     
                     # And the original bug pattern should work
                     conversion_config = config_manager.get_conversion_config()
-                    max_workers = conversion_config.get('max_workers', 4)
+                    max_workers = conversion_config.get('max_parallel', 4)
                     assert max_workers == 3
                     
         finally:
