@@ -108,9 +108,18 @@ class KFXConverter(LoggerMixin):
 
     def _check_kfx_plugin(self) -> bool:
         """Check if KFX Output Plugin is installed."""
-        if self._converter:
-            return self._converter.check_kfx_plugin()
-        return False
+        # Use FormatConverter's plugin validation since it has the actual implementation
+        try:
+            from .converter import FormatConverter
+            temp_converter = FormatConverter(self.config_manager)
+            return temp_converter.validate_kfx_plugin()
+        except Exception as e:
+            self.logger.error(f"Failed to validate KFX plugin: {e}")
+            return False
+
+    def validate_kfx_plugin(self) -> bool:
+        """Validate KFX plugin - delegate to FormatConverter for consistency."""
+        return self._check_kfx_plugin()
 
     def _check_kindle_previewer(self) -> bool:
         """Check if Kindle Previewer 3 is installed."""
