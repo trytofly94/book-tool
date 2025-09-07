@@ -68,11 +68,13 @@ class ASINLookupService(LoggerMixin):
         # Initialize cache manager
         self.cache_manager = CacheManager(self.cache_path)
         
-        # User agents for web scraping
+        # User agents for web scraping - updated for 2025
         self.user_agents = [
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
         ]
         
         # Thread lock for cache operations
@@ -85,6 +87,7 @@ class ASINLookupService(LoggerMixin):
         sources: Optional[List[str]] = None,
         use_cache: bool = True,
         progress_callback=None,
+        verbose: bool = False,
     ) -> ASINLookupResult:
         """
         Look up ASIN by book title and author.
@@ -128,22 +131,47 @@ class ASINLookupService(LoggerMixin):
         search_sources = sources or self.sources
         
         # Try different lookup methods in priority order
+        # Map source names to method names for filtering
+        source_method_mapping = {
+            'amazon': 'amazon-search',
+            'amazon-search': 'amazon-search', 
+            'goodreads': 'google-books',  # Goodreads data comes via Google Books API
+            'google-books': 'google-books',
+            'openlibrary': 'openlibrary'
+        }
+        
         lookup_methods = [
-            ('amazon-search', lambda: self._lookup_via_amazon_search(title, author)),
-            ('google-books', lambda: self._lookup_via_google_books(None, title, author)),
-            ('openlibrary', lambda: self._lookup_via_openlibrary(None) if author else None),
+            ('amazon-search', lambda: self._lookup_via_amazon_search(title, author, verbose)),
+            ('google-books', lambda: self._lookup_via_google_books(None, title, author, verbose)),
+            ('openlibrary', lambda: self._lookup_via_openlibrary(None, title, author, verbose)),
         ]
         
+        # Track errors for better error reporting
+        source_errors = {}
+        methods_attempted = []
+        
         for method_name, method in lookup_methods:
-            # Skip if source not in requested sources
-            if not any(source in method_name for source in search_sources):
+            # Skip if source not in requested sources using proper mapping
+            method_should_run = False
+            for requested_source in search_sources:
+                mapped_method = source_method_mapping.get(requested_source, requested_source)
+                if mapped_method == method_name:
+                    method_should_run = True
+                    break
+            
+            if not method_should_run:
                 continue
+                
+            methods_attempted.append(method_name)
                 
             try:
                 if progress_callback:
                     progress_callback(description=f"Trying {method_name}...")
                     
-                self.logger.debug(f"Trying lookup method: {method_name}")
+                self.logger.info(f"Trying lookup method: {method_name}")
+                if verbose:
+                    self.logger.info(f"ASIN lookup: Starting {method_name} for '{title}' by {author or 'unknown author'}")
+                    
                 asin = method()
                 
                 if asin and self.validate_asin(asin):
@@ -163,24 +191,48 @@ class ASINLookupService(LoggerMixin):
                         lookup_time=time.time() - start_time,
                         from_cache=False
                     )
+                else:
+                    if verbose:
+                        if asin:
+                            self.logger.info(f"ASIN lookup: {method_name} returned invalid ASIN: {asin}")
+                        else:
+                            self.logger.info(f"ASIN lookup: {method_name} returned no results")
+                    source_errors[method_name] = "No valid ASIN found"
                 
                 # Rate limiting between attempts
                 time.sleep(self.rate_limit)
                 
             except Exception as e:
+                error_msg = str(e)
+                source_errors[method_name] = error_msg
                 self.logger.warning(f"Lookup method {method_name} failed: {e}")
+                if verbose:
+                    self.logger.error(f"ASIN lookup: Detailed error for {method_name}: {e}", exc_info=True)
                 continue
         
-        # No ASIN found
+        # No ASIN found - create detailed error message
+        if verbose:
+            self.logger.info(f"ASIN lookup summary for '{title}' by {author or 'unknown author'}:")
+            self.logger.info(f"  Methods attempted: {methods_attempted}")
+            for method, error in source_errors.items():
+                self.logger.info(f"  {method}: {error}")
+        
+        # Create detailed error message
+        if source_errors:
+            error_details = "; ".join([f"{method}: {error}" for method, error in source_errors.items()])
+            error_message = f"No ASIN found. Sources attempted: {error_details}"
+        else:
+            error_message = f"No ASIN sources available for the requested sources: {search_sources}"
+        
         self.logger.info(f"No ASIN found for '{title}' by {author or 'unknown author'}")
         return ASINLookupResult(
             query_title=title,
             query_author=author,
             asin=None,
-            metadata=None,
+            metadata=source_errors,  # Pass source errors as metadata for debugging
             source=None,
             success=False,
-            error="No ASIN found from any source",
+            error=error_message,
             lookup_time=time.time() - start_time,
             from_cache=False
         )
@@ -191,6 +243,7 @@ class ASINLookupService(LoggerMixin):
         sources: Optional[List[str]] = None,
         use_cache: bool = True,
         progress_callback=None,
+        verbose: bool = False,
     ) -> ASINLookupResult:
         """Look up ASIN by ISBN."""
         start_time = time.time()
@@ -222,15 +275,31 @@ class ASINLookupService(LoggerMixin):
         search_sources = sources or self.sources
         
         # Try different lookup methods in priority order for ISBN
+        # Map source names to method names for filtering
+        source_method_mapping = {
+            'amazon': 'isbn-direct',
+            'amazon-search': 'isbn-direct',
+            'goodreads': 'google-books',  # Goodreads data comes via Google Books API
+            'google-books': 'google-books',
+            'openlibrary': 'openlibrary'
+        }
+        
         lookup_methods = [
             ('isbn-direct', lambda: self._lookup_by_isbn_direct(isbn)),
-            ('google-books', lambda: self._lookup_via_google_books(isbn, None, None)),
-            ('openlibrary', lambda: self._lookup_via_openlibrary(isbn)),
+            ('google-books', lambda: self._lookup_via_google_books(isbn, None, None, verbose)),
+            ('openlibrary', lambda: self._lookup_via_openlibrary(isbn, verbose=verbose)),
         ]
         
         for method_name, method in lookup_methods:
-            # Skip if source not in requested sources
-            if not any(source in method_name for source in search_sources):
+            # Skip if source not in requested sources using proper mapping
+            method_should_run = False
+            for requested_source in search_sources:
+                mapped_method = source_method_mapping.get(requested_source, requested_source)
+                if mapped_method == method_name:
+                    method_should_run = True
+                    break
+            
+            if not method_should_run:
                 continue
                 
             try:
@@ -368,9 +437,14 @@ class ASINLookupService(LoggerMixin):
         return results
     
     def validate_asin(self, asin: str) -> bool:
-        """Validate ASIN format."""
-        from ..utils.validation import validate_asin
-        return validate_asin(asin)
+        """Validate ASIN format - specifically for Amazon ASINs (not ISBNs)."""
+        if not asin or not isinstance(asin, str):
+            return False
+        
+        # Amazon ASINs for books start with 'B' and are exactly 10 characters
+        # Pattern: B followed by 9 alphanumeric characters
+        asin_pattern = re.compile(r'^B[A-Z0-9]{9}$')
+        return bool(asin_pattern.match(asin.upper()))
     
     def check_availability(self, asin: str, progress_callback=None):
         """Check if ASIN is available on Amazon."""
@@ -444,105 +518,492 @@ class ASINLookupService(LoggerMixin):
         
         return None
     
-    def _lookup_via_amazon_search(self, title: str, author: Optional[str]) -> Optional[str]:
-        """Web scraping of Amazon search results."""
+    def _lookup_via_amazon_search(self, title: str, author: Optional[str], verbose: bool = False) -> Optional[str]:
+        """Web scraping of Amazon search results with retry logic and multiple strategies."""
         if not title:
+            self.logger.debug("Amazon search: No title provided")
             return None
         
-        try:
-            # Create search query
-            query = title
-            if author:
-                query = f"{title} {author}"
-            
-            query = query.replace(' ', '+')
-            url = f"https://www.amazon.com/s?k={query}&i=digital-text"
-            
-            headers = {'User-Agent': self.user_agents[0]}
-            response = requests.get(url, headers=headers, timeout=10)
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
+        # Multiple search strategies to try
+        search_strategies = [
+            # Strategy 1: Books section search
+            {'i': 'stripbooks', 'section': 'books'},
+            # Strategy 2: Kindle eBooks section
+            {'i': 'digital-text', 'section': 'kindle'},
+            # Strategy 3: All departments
+            {'section': 'all-departments'},
+        ]
+        
+        for strategy_idx, strategy in enumerate(search_strategies):
+            try:
+                # Create search query
+                query = title
+                if author:
+                    query = f"{title} {author}"
                 
-                # Look for products with data-asin attribute
-                products = soup.find_all(attrs={'data-asin': True})
+                # URL encode the query properly
+                import urllib.parse
+                query_encoded = urllib.parse.quote_plus(query)
                 
-                for product in products:
-                    asin = product.get('data-asin')
-                    if asin and asin.startswith('B') and len(asin) == 10:
-                        return asin
+                # Build URL based on strategy
+                if 'i' in strategy:
+                    url = f"https://www.amazon.com/s?k={query_encoded}&i={strategy['i']}"
+                else:
+                    url = f"https://www.amazon.com/s?k={query_encoded}"
+                
+                if verbose:
+                    self.logger.info(f"Amazon search: Strategy {strategy_idx + 1} ({strategy['section']}) for '{query}' -> URL: {url}")
+                else:
+                    self.logger.debug(f"Amazon search: Strategy {strategy_idx + 1} for '{query}'")
+                
+                # Try with different user agents and retry logic
+                for attempt in range(3):  # 3 attempts per strategy
+                    try:
+                        # Rotate user agents
+                        user_agent = self.user_agents[attempt % len(self.user_agents)]
+                        headers = {
+                            'User-Agent': user_agent,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'DNT': '1',
+                            'Connection': 'keep-alive',
+                            'Upgrade-Insecure-Requests': '1',
+                        }
                         
-        except Exception as e:
-            self.logger.debug(f"Amazon search lookup failed: {e}")
-        
-        return None
-    
-    def _lookup_via_google_books(self, isbn: Optional[str], title: Optional[str], author: Optional[str]) -> Optional[str]:
-        """Google Books API lookup."""
-        try:
-            # Build search query
-            query_parts = []
-            if isbn:
-                query_parts.append(f"isbn:{isbn}")
-            if title:
-                query_parts.append(f'intitle:"{title}"')
-            if author:
-                query_parts.append(f'inauthor:"{author}"')
-            
-            if not query_parts:
-                return None
-            
-            query = '+'.join(query_parts)
-            url = f"https://www.googleapis.com/books/v1/volumes?q={query}&maxResults=5"
-            
-            response = requests.get(url, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
+                        if verbose and attempt == 0:
+                            self.logger.info(f"Amazon search: Using User-Agent: {user_agent[:60]}...")
+                        
+                        response = requests.get(url, headers=headers, timeout=15)
+                        
+                        self.logger.debug(f"Amazon search: Attempt {attempt + 1}, status: {response.status_code}, content length: {len(response.content)} bytes")
+                        
+                        if verbose and attempt == 0:
+                            response_headers = dict(response.headers)
+                            # Remove sensitive headers for logging
+                            safe_headers = {k: v for k, v in response_headers.items() if k.lower() not in ['set-cookie']}
+                            self.logger.info(f"Amazon search: Response headers: {safe_headers}")
+                        
+                        if response.status_code == 200:
+                            soup = BeautifulSoup(response.content, 'html.parser')
+                            
+                            # Multiple selector strategies for finding ASINs
+                            asin_found = self._extract_asin_from_amazon_page(soup, verbose, strategy['section'])
+                            if asin_found:
+                                return asin_found
+                            
+                        elif response.status_code == 503:
+                            self.logger.debug(f"Amazon search: Service unavailable (503), retrying with different user agent")
+                            time.sleep(2 ** attempt)  # Exponential backoff
+                            continue
+                        elif response.status_code == 429:
+                            self.logger.debug(f"Amazon search: Rate limited (429), backing off")
+                            time.sleep(5 * (attempt + 1))  # Linear backoff for rate limiting
+                            continue
+                        else:
+                            self.logger.warning(f"Amazon search: HTTP {response.status_code} response")
+                            if verbose:
+                                self.logger.info(f"Amazon search: Response content preview: {response.text[:500]}")
+                            break  # Don't retry for other HTTP errors
+                            
+                    except requests.exceptions.Timeout:
+                        self.logger.debug(f"Amazon search: Timeout on attempt {attempt + 1}")
+                        if attempt < 2:  # Don't sleep on last attempt
+                            time.sleep(1)
+                        continue
+                    except requests.exceptions.ConnectionError as e:
+                        self.logger.debug(f"Amazon search: Connection error on attempt {attempt + 1}: {e}")
+                        if attempt < 2:
+                            time.sleep(2)
+                        continue
                 
-                for item in data.get('items', []):
-                    volume_info = item.get('volumeInfo', {})
-                    industry_identifiers = volume_info.get('industryIdentifiers', [])
-                    
-                    # Look for ASIN in identifiers
-                    for identifier in industry_identifiers:
-                        if identifier.get('type') == 'OTHER':
-                            asin_candidate = identifier.get('identifier', '')
-                            if self.validate_asin(asin_candidate):
-                                return asin_candidate
-                                
-        except Exception as e:
-            self.logger.debug(f"Google Books lookup failed: {e}")
+                # Small delay between strategies to be respectful
+                time.sleep(1)
+                        
+            except Exception as e:
+                self.logger.debug(f"Amazon search strategy {strategy_idx + 1} failed: {e}")
+                if verbose:
+                    self.logger.error(f"Amazon search detailed error for strategy {strategy_idx + 1}: {e}", exc_info=True)
+                continue
         
+        self.logger.debug("Amazon search: No ASIN found with any strategy")
         return None
     
-    def _lookup_via_openlibrary(self, isbn: Optional[str]) -> Optional[str]:
-        """OpenLibrary API lookup."""
-        if not isbn:
+    def _extract_asin_from_amazon_page(self, soup: BeautifulSoup, verbose: bool, section: str) -> Optional[str]:
+        """Extract ASIN from Amazon search page using multiple selector strategies."""
+        
+        # Strategy 1: data-asin attributes (most common)
+        products = soup.find_all(attrs={'data-asin': True})
+        self.logger.debug(f"Amazon search ({section}): Found {len(products)} products with data-asin attribute")
+        
+        # Log some sample ASINs found for debugging
+        sample_asins = []
+        for product in products[:5]:  # Check first 5 for debugging
+            asin = product.get('data-asin')
+            if asin:
+                sample_asins.append(asin)
+        
+        if verbose and sample_asins:
+            self.logger.info(f"Amazon search ({section}): Sample ASINs found: {sample_asins}")
+        
+        # Look for valid book ASINs (start with 'B' and are 10 chars)
+        for product in products:
+            asin = product.get('data-asin')
+            if asin and asin.startswith('B') and len(asin) == 10:
+                self.logger.debug(f"Amazon search ({section}): Found valid ASIN: {asin}")
+                return asin
+        
+        # Strategy 2: ASINs in href attributes of links
+        self.logger.debug(f"Amazon search ({section}): No valid ASINs in data-asin, trying href links")
+        asin_links = soup.find_all('a', href=True)
+        
+        for link in asin_links[:30]:  # Check first 30 links
+            href = link.get('href', '')
+            # Look for patterns like /dp/B123456789, /gp/product/B123456789, etc.
+            asin_patterns = [
+                r'/dp/([B][A-Z0-9]{9})',
+                r'/gp/product/([B][A-Z0-9]{9})',
+                r'ASIN=([B][A-Z0-9]{9})',
+                r'asin=([B][A-Z0-9]{9})',
+            ]
+            
+            for pattern in asin_patterns:
+                asin_match = re.search(pattern, href)
+                if asin_match:
+                    asin = asin_match.group(1)
+                    self.logger.debug(f"Amazon search ({section}): Found ASIN in link: {asin} (pattern: {pattern})")
+                    return asin
+        
+        # Strategy 3: Look in JavaScript/JSON data on page
+        self.logger.debug(f"Amazon search ({section}): Trying to extract from page scripts")
+        scripts = soup.find_all('script', string=True)
+        
+        for script in scripts[:10]:  # Check first 10 scripts
+            script_content = script.string
+            if script_content and 'asin' in script_content.lower():
+                # Look for ASIN patterns in JavaScript
+                asin_matches = re.findall(r'"asin"\s*:\s*"([B][A-Z0-9]{9})"', script_content, re.IGNORECASE)
+                if asin_matches:
+                    asin = asin_matches[0]
+                    self.logger.debug(f"Amazon search ({section}): Found ASIN in script: {asin}")
+                    return asin
+                
+                # Alternative JS pattern
+                asin_matches = re.findall(r'["\']([B][A-Z0-9]{9})["\']', script_content)
+                if asin_matches:
+                    asin = asin_matches[0]
+                    self.logger.debug(f"Amazon search ({section}): Found ASIN candidate in script: {asin}")
+                    return asin
+        
+        # Strategy 4: Check meta tags or other elements  
+        self.logger.debug(f"Amazon search ({section}): Trying meta tags and other elements")
+        
+        # Check for ASINs in various element attributes
+        elements_with_ids = soup.find_all(attrs={'id': re.compile(r'.*[Bb][A-Z0-9]{9}.*')})
+        for elem in elements_with_ids:
+            elem_id = elem.get('id', '')
+            asin_match = re.search(r'([B][A-Z0-9]{9})', elem_id)
+            if asin_match:
+                asin = asin_match.group(1)
+                self.logger.debug(f"Amazon search ({section}): Found ASIN in element ID: {asin}")
+                return asin
+        
+        self.logger.debug(f"Amazon search ({section}): No ASIN found with any extraction method")
+        return None
+    
+    def _lookup_via_google_books(self, isbn: Optional[str], title: Optional[str], author: Optional[str], verbose: bool = False) -> Optional[str]:
+        """Google Books API lookup with improved query formatting and multiple strategies."""
+        
+        # Multiple query strategies to improve success rate
+        strategies = []
+        
+        if isbn:
+            strategies.append(('isbn', f"isbn:{isbn}"))
+        
+        if title and author:
+            # Strategy 1: Exact title and author search
+            strategies.append(('title_author_exact', f'intitle:"{title}"+inauthor:"{author}"'))
+            # Strategy 2: Title and author without quotes (broader search)
+            strategies.append(('title_author_broad', f'intitle:{title}+inauthor:{author}'))
+            # Strategy 3: Combined search without field specifiers
+            strategies.append(('combined', f'"{title} {author}"'))
+            # Strategy 4: Title only with author as general query
+            strategies.append(('title_focused', f'intitle:"{title}"+{author}'))
+        elif title:
+            # Strategy 5: Title only searches
+            strategies.append(('title_exact', f'intitle:"{title}"'))
+            strategies.append(('title_broad', f'{title}'))
+        elif author:
+            # Strategy 6: Author only search
+            strategies.append(('author_only', f'inauthor:"{author}"'))
+        
+        if not strategies:
+            self.logger.debug("Google Books: No query parameters provided")
             return None
         
-        try:
-            clean_isbn = re.sub(r'[^0-9X]', '', isbn.upper())
-            url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
-            
-            response = requests.get(url, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
+        for strategy_name, query in strategies:
+            try:
+                # URL encode the query properly
+                import urllib.parse
+                encoded_query = urllib.parse.quote(query)
+                url = f"https://www.googleapis.com/books/v1/volumes?q={encoded_query}&maxResults=10"
                 
-                # OpenLibrary rarely has ASINs, but check identifiers
-                for book_data in data.values():
-                    identifiers = book_data.get('identifiers', {})
+                if verbose:
+                    self.logger.info(f"Google Books: Strategy '{strategy_name}' -> Query: {query}")
+                    self.logger.info(f"Google Books: URL: {url}")
+                else:
+                    self.logger.debug(f"Google Books: Strategy '{strategy_name}' with query: {query}")
+                
+                # Add retry logic with backoff
+                for attempt in range(3):
+                    try:
+                        headers = {
+                            'User-Agent': self.user_agents[attempt % len(self.user_agents)],
+                            'Accept': 'application/json',
+                        }
+                        
+                        response = requests.get(url, headers=headers, timeout=15)
+                        
+                        self.logger.debug(f"Google Books ({strategy_name}): Attempt {attempt + 1}, status: {response.status_code}, content length: {len(response.content)} bytes")
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            
+                            total_items = data.get('totalItems', 0)
+                            items = data.get('items', [])
+                            
+                            self.logger.debug(f"Google Books ({strategy_name}): Found {total_items} total items, {len(items)} returned")
+                            
+                            if verbose and items:
+                                # Log details of first few results
+                                for i, item in enumerate(items[:3]):
+                                    volume_info = item.get('volumeInfo', {})
+                                    title_found = volume_info.get('title', 'Unknown')
+                                    authors_found = volume_info.get('authors', ['Unknown'])
+                                    published_date = volume_info.get('publishedDate', 'Unknown')
+                                    self.logger.info(f"Google Books ({strategy_name}): Result {i+1}: '{title_found}' by {authors_found} ({published_date})")
+                            
+                            # Try different ASIN extraction methods
+                            asin_found = self._extract_asin_from_google_books_result(data, verbose, strategy_name)
+                            if asin_found:
+                                return asin_found
+                            
+                            break  # Success, no need to retry this strategy
+                        
+                        elif response.status_code == 429:
+                            self.logger.debug(f"Google Books ({strategy_name}): Rate limited (429), backing off")
+                            time.sleep(2 ** attempt)  # Exponential backoff
+                            continue
+                        elif response.status_code >= 500:
+                            self.logger.debug(f"Google Books ({strategy_name}): Server error ({response.status_code}), retrying")
+                            time.sleep(1 + attempt)
+                            continue
+                        else:
+                            self.logger.warning(f"Google Books ({strategy_name}): HTTP {response.status_code} response")
+                            if verbose:
+                                self.logger.info(f"Google Books ({strategy_name}): Response content: {response.text[:500]}")
+                            break  # Don't retry for client errors
+                        
+                    except requests.exceptions.Timeout:
+                        self.logger.debug(f"Google Books ({strategy_name}): Timeout on attempt {attempt + 1}")
+                        if attempt < 2:
+                            time.sleep(1)
+                        continue
+                    except requests.exceptions.RequestException as e:
+                        self.logger.debug(f"Google Books ({strategy_name}): Request error on attempt {attempt + 1}: {e}")
+                        if attempt < 2:
+                            time.sleep(1)
+                        continue
+                
+                # Small delay between strategies
+                time.sleep(0.5)
+                                
+            except Exception as e:
+                self.logger.debug(f"Google Books strategy '{strategy_name}' failed: {e}")
+                if verbose:
+                    self.logger.error(f"Google Books detailed error for strategy '{strategy_name}': {e}", exc_info=True)
+                continue
+        
+        self.logger.debug("Google Books: No ASIN found with any strategy")
+        return None
+    
+    def _extract_asin_from_google_books_result(self, data: dict, verbose: bool, strategy_name: str) -> Optional[str]:
+        """Extract ASIN from Google Books API response using multiple methods."""
+        
+        items = data.get('items', [])
+        if not items:
+            return None
+        
+        # Method 1: Look for ASIN in industryIdentifiers
+        for item in items:
+            volume_info = item.get('volumeInfo', {})
+            industry_identifiers = volume_info.get('industryIdentifiers', [])
+            
+            if verbose:
+                self.logger.info(f"Google Books ({strategy_name}): Checking identifiers: {industry_identifiers}")
+            
+            for identifier in industry_identifiers:
+                identifier_type = identifier.get('type')
+                identifier_value = identifier.get('identifier', '')
+                
+                self.logger.debug(f"Google Books ({strategy_name}): Found identifier type '{identifier_type}': {identifier_value}")
+                
+                # Check for ASIN in 'OTHER' type identifiers
+                if identifier_type == 'OTHER' and self.validate_asin(identifier_value):
+                    self.logger.debug(f"Google Books ({strategy_name}): Found valid ASIN in identifiers: {identifier_value}")
+                    return identifier_value
+                
+                # Sometimes ASINs are listed as ISBN_13 or other types
+                if self.validate_asin(identifier_value):
+                    self.logger.debug(f"Google Books ({strategy_name}): Found valid ASIN in '{identifier_type}' identifier: {identifier_value}")
+                    return identifier_value
+        
+        # Method 2: Extract from various link fields
+        for item in items:
+            volume_info = item.get('volumeInfo', {})
+            
+            # Check multiple link fields for Amazon URLs
+            link_fields = ['infoLink', 'canonicalVolumeLink', 'previewLink']
+            for link_key in link_fields:
+                link = volume_info.get(link_key, '')
+                if link and 'amazon' in link.lower():
+                    self.logger.debug(f"Google Books ({strategy_name}): Found Amazon link in '{link_key}': {link}")
                     
-                    # Look for Amazon identifiers
-                    amazon_ids = identifiers.get('amazon', [])
-                    for amazon_id in amazon_ids:
-                        if self.validate_asin(amazon_id):
-                            return amazon_id
+                    # Multiple ASIN extraction patterns
+                    asin_patterns = [
+                        r'[/?]dp/([B][A-Z0-9]{9})',
+                        r'[/?]([B][A-Z0-9]{9})',
+                        r'ASIN=([B][A-Z0-9]{9})',
+                        r'asin=([B][A-Z0-9]{9})',
+                    ]
+                    
+                    for pattern in asin_patterns:
+                        asin_match = re.search(pattern, link, re.IGNORECASE)
+                        if asin_match:
+                            asin = asin_match.group(1)
+                            self.logger.debug(f"Google Books ({strategy_name}): Extracted ASIN from {link_key}: {asin}")
+                            return asin
+        
+        # Method 3: Look for ASINs in the raw JSON response (sometimes hidden in other fields)
+        json_str = json.dumps(data)
+        asin_matches = re.findall(r'([B][A-Z0-9]{9})', json_str)
+        
+        for asin_candidate in asin_matches:
+            if self.validate_asin(asin_candidate):
+                self.logger.debug(f"Google Books ({strategy_name}): Found ASIN in raw JSON: {asin_candidate}")
+                return asin_candidate
+        
+        # Method 4: Check for ISBN that might be an ASIN (sometimes mislabeled)
+        for item in items:
+            volume_info = item.get('volumeInfo', {})
+            industry_identifiers = volume_info.get('industryIdentifiers', [])
+            
+            for identifier in industry_identifiers:
+                identifier_value = identifier.get('identifier', '')
+                # Check if any "ISBN" is actually an ASIN
+                if len(identifier_value) == 10 and identifier_value.startswith('B'):
+                    if self.validate_asin(identifier_value):
+                        self.logger.debug(f"Google Books ({strategy_name}): Found ASIN mislabeled as ISBN: {identifier_value}")
+                        return identifier_value
+        
+        self.logger.debug(f"Google Books ({strategy_name}): No ASIN found in results")
+        return None
+    
+    def _lookup_via_openlibrary(self, isbn: Optional[str], title: Optional[str] = None, author: Optional[str] = None, verbose: bool = False) -> Optional[str]:
+        """OpenLibrary API lookup."""
+        try:
+            # Try ISBN lookup first if available
+            if isbn:
+                clean_isbn = re.sub(r'[^0-9X]', '', isbn.upper())
+                url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
+                
+                if verbose:
+                    self.logger.info(f"OpenLibrary: ISBN lookup for {clean_isbn} -> URL: {url}")
+                else:
+                    self.logger.debug(f"OpenLibrary: ISBN lookup for {clean_isbn}")
+                
+                response = requests.get(url, timeout=10)
+                
+                self.logger.debug(f"OpenLibrary: ISBN response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if verbose:
+                        self.logger.info(f"OpenLibrary: ISBN response data keys: {list(data.keys())}")
+                    
+                    # OpenLibrary rarely has ASINs, but check identifiers
+                    for book_data in data.values():
+                        identifiers = book_data.get('identifiers', {})
+                        
+                        if verbose:
+                            self.logger.info(f"OpenLibrary: Found identifiers: {list(identifiers.keys())}")
+                        
+                        # Look for Amazon identifiers
+                        amazon_ids = identifiers.get('amazon', [])
+                        for amazon_id in amazon_ids:
+                            if self.validate_asin(amazon_id):
+                                self.logger.debug(f"OpenLibrary: Found valid ASIN: {amazon_id}")
+                                return amazon_id
+            
+            # If no ISBN or ISBN lookup failed, try title/author search
+            if title:
+                # Build search query for OpenLibrary Search API
+                search_params = []
+                if title:
+                    search_params.append(f"title:{title}")
+                if author:
+                    search_params.append(f"author:{author}")
+                
+                search_query = " AND ".join(search_params)
+                # URL encode the search query
+                import urllib.parse
+                encoded_query = urllib.parse.quote(search_query)
+                search_url = f"https://openlibrary.org/search.json?q={encoded_query}&limit=5"
+                
+                if verbose:
+                    self.logger.info(f"OpenLibrary: Title/author search: '{search_query}' -> URL: {search_url}")
+                else:
+                    self.logger.debug(f"OpenLibrary: Title/author search for '{search_query}'")
+                
+                search_response = requests.get(search_url, timeout=10)
+                
+                self.logger.debug(f"OpenLibrary: Search response status: {search_response.status_code}")
+                
+                if search_response.status_code == 200:
+                    search_data = search_response.json()
+                    
+                    num_found = search_data.get('numFound', 0)
+                    docs = search_data.get('docs', [])
+                    
+                    self.logger.debug(f"OpenLibrary: Found {num_found} total results, {len(docs)} returned")
+                    
+                    if verbose and docs:
+                        # Log details of first few results
+                        for i, doc in enumerate(docs[:3]):
+                            doc_title = doc.get('title', 'Unknown')
+                            doc_author = doc.get('author_name', ['Unknown'])
+                            self.logger.info(f"OpenLibrary: Search result {i+1}: '{doc_title}' by {doc_author}")
+                    
+                    # Look through results for ISBNs that we can then lookup
+                    for doc in docs:
+                        # Check if this doc has ISBN
+                        isbns = doc.get('isbn', [])
+                        for isbn_candidate in isbns[:3]:  # Check first 3 ISBNs
+                            if verbose:
+                                self.logger.info(f"OpenLibrary: Trying ISBN from search result: {isbn_candidate}")
+                            
+                            # Recursively lookup this ISBN
+                            asin = self._lookup_via_openlibrary(isbn_candidate, verbose=verbose)
+                            if asin:
+                                return asin
                             
         except Exception as e:
             self.logger.debug(f"OpenLibrary lookup failed: {e}")
+            if verbose:
+                self.logger.error(f"OpenLibrary detailed error: {e}", exc_info=True)
         
+        self.logger.debug("OpenLibrary: No ASIN found")
         return None
 
 

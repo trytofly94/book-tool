@@ -56,6 +56,12 @@ def asin(ctx: click.Context) -> None:
     default=True,
     help="Use cached results when available.",
 )
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Enable verbose output for debugging ASIN lookup issues.",
+)
 @click.pass_context
 def lookup(
     ctx: click.Context,
@@ -64,6 +70,7 @@ def lookup(
     isbn: Optional[str],
     sources: tuple[str, ...],
     cache: bool,
+    verbose: bool,
 ) -> None:
     """
     Look up ASIN for a specific book.
@@ -95,6 +102,13 @@ def lookup(
             console.print(f"  Use cache: {cache}")
             return
         
+        # Set verbose mode for debugging
+        if verbose:
+            # Enable debug logging for ASIN lookup
+            asin_logger = logging.getLogger('calibre_books.core.asin_lookup')
+            asin_logger.setLevel(logging.DEBUG)
+            console.print("[yellow]Verbose mode enabled - showing detailed lookup information[/yellow]")
+        
         with ProgressManager("Looking up ASIN") as progress:
             if isbn:
                 result = lookup_service.lookup_by_isbn(
@@ -102,6 +116,7 @@ def lookup(
                     sources=sources or None,
                     use_cache=cache,
                     progress_callback=progress.update,
+                    verbose=verbose,
                 )
             else:
                 result = lookup_service.lookup_by_title(
@@ -110,13 +125,20 @@ def lookup(
                     sources=sources or None,
                     use_cache=cache,
                     progress_callback=progress.update,
+                    verbose=verbose,
                 )
         
         if result.asin:
             console.print(f"[green]ASIN found: {result.asin}[/green]")
+            if result.source:
+                console.print(f"[cyan]Source: {result.source}[/cyan]")
+            if result.lookup_time:
+                console.print(f"[dim]Lookup time: {result.lookup_time:.2f}s[/dim]")
+            if result.from_cache:
+                console.print("[dim](from cache)[/dim]")
             
-            # Display additional metadata if available
-            if result.metadata:
+            # Display additional metadata if available (but not error metadata)
+            if result.metadata and isinstance(result.metadata, dict) and not all(isinstance(v, str) for v in result.metadata.values()):
                 table = Table(title="Book Metadata")
                 table.add_column("Field", style="cyan")
                 table.add_column("Value", style="white")
@@ -129,6 +151,21 @@ def lookup(
             console.print("[yellow]No ASIN found[/yellow]")
             if result.error:
                 console.print(f"[red]Error: {result.error}[/red]")
+            
+            # In verbose mode, show detailed error information
+            if verbose and result.metadata and isinstance(result.metadata, dict):
+                console.print("\n[yellow]Detailed source information:[/yellow]")
+                error_table = Table(title="Source Lookup Results")
+                error_table.add_column("Source", style="cyan")
+                error_table.add_column("Result", style="white")
+                
+                for source, error in result.metadata.items():
+                    error_table.add_row(source, str(error))
+                
+                console.print(error_table)
+            
+            if result.lookup_time:
+                console.print(f"[dim]Total lookup time: {result.lookup_time:.2f}s[/dim]")
             
     except Exception as e:
         logger.error(f"ASIN lookup failed: {e}")
