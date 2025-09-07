@@ -13,7 +13,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from calibre_books.core.downloader import KFXConverter
+from calibre_books.core.converter import FormatConverter
 from calibre_books.core.file_scanner import FileScanner
 from calibre_books.utils.progress import ProgressManager
 
@@ -77,7 +77,7 @@ def kfx(
     dry_run = ctx.obj["dry_run"]
     
     try:
-        converter = KFXConverter(config)
+        converter = FormatConverter(config)
         
         # Check KFX plugin before attempting conversion
         if not converter.validate_kfx_plugin():
@@ -154,8 +154,9 @@ def kfx(
         console.print(f"[cyan]Converting {len(books)} books to KFX format...[/cyan]")
         
         with ProgressManager(f"Converting to KFX") as progress:
-            results = converter.convert_books_to_kfx(
+            results = converter.convert_batch(
                 books,
+                output_format="kfx",
                 output_dir=output_dir,
                 parallel=parallel,
                 progress_callback=progress.update,
@@ -240,7 +241,7 @@ def single(
         
         if format == 'kfx':
             # Use KFX converter
-            converter = KFXConverter(config)
+            converter = FormatConverter(config)
             
             # Check KFX plugin before attempting conversion
             if not converter.validate_kfx_plugin():
@@ -263,8 +264,9 @@ def single(
             console.print(f"Converting {book.metadata.title} to KFX...")
             
             with ProgressManager("Converting to KFX") as progress:
-                results = converter.convert_books_to_kfx(
+                results = converter.convert_batch(
                     [book],
+                    output_format="kfx",
                     output_dir=output_file.parent,
                     parallel=1,
                     progress_callback=progress.update,
