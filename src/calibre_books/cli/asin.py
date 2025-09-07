@@ -56,6 +56,12 @@ def asin(ctx: click.Context) -> None:
     default=True,
     help="Use cached results when available.",
 )
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    help="Enable verbose output for debugging ASIN lookup issues.",
+)
 @click.pass_context
 def lookup(
     ctx: click.Context,
@@ -64,6 +70,7 @@ def lookup(
     isbn: Optional[str],
     sources: tuple[str, ...],
     cache: bool,
+    verbose: bool,
 ) -> None:
     """
     Look up ASIN for a specific book.
@@ -95,6 +102,13 @@ def lookup(
             console.print(f"  Use cache: {cache}")
             return
         
+        # Set verbose mode for debugging
+        if verbose:
+            # Enable debug logging for ASIN lookup
+            asin_logger = logging.getLogger('calibre_books.core.asin_lookup')
+            asin_logger.setLevel(logging.DEBUG)
+            console.print("[yellow]Verbose mode enabled - showing detailed lookup information[/yellow]")
+        
         with ProgressManager("Looking up ASIN") as progress:
             if isbn:
                 result = lookup_service.lookup_by_isbn(
@@ -102,6 +116,7 @@ def lookup(
                     sources=sources or None,
                     use_cache=cache,
                     progress_callback=progress.update,
+                    verbose=verbose,
                 )
             else:
                 result = lookup_service.lookup_by_title(
@@ -110,6 +125,7 @@ def lookup(
                     sources=sources or None,
                     use_cache=cache,
                     progress_callback=progress.update,
+                    verbose=verbose,
                 )
         
         if result.asin:
