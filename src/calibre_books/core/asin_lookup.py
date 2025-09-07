@@ -137,16 +137,25 @@ class ASINLookupService(LoggerMixin):
             ('openlibrary', lambda: self._lookup_via_openlibrary(None, title, author, verbose)),
         ]
         
+        # Track errors for better error reporting
+        source_errors = {}
+        methods_attempted = []
+        
         for method_name, method in lookup_methods:
             # Skip if source not in requested sources
             if not any(source in method_name for source in search_sources):
                 continue
                 
+            methods_attempted.append(method_name)
+                
             try:
                 if progress_callback:
                     progress_callback(description=f"Trying {method_name}...")
                     
-                self.logger.debug(f"Trying lookup method: {method_name}")
+                self.logger.info(f"Trying lookup method: {method_name}")
+                if verbose:
+                    self.logger.info(f"ASIN lookup: Starting {method_name} for '{title}' by {author or 'unknown author'}")
+                    
                 asin = method()
                 
                 if asin and self.validate_asin(asin):
@@ -166,24 +175,48 @@ class ASINLookupService(LoggerMixin):
                         lookup_time=time.time() - start_time,
                         from_cache=False
                     )
+                else:
+                    if verbose:
+                        if asin:
+                            self.logger.info(f"ASIN lookup: {method_name} returned invalid ASIN: {asin}")
+                        else:
+                            self.logger.info(f"ASIN lookup: {method_name} returned no results")
+                    source_errors[method_name] = "No valid ASIN found"
                 
                 # Rate limiting between attempts
                 time.sleep(self.rate_limit)
                 
             except Exception as e:
+                error_msg = str(e)
+                source_errors[method_name] = error_msg
                 self.logger.warning(f"Lookup method {method_name} failed: {e}")
+                if verbose:
+                    self.logger.error(f"ASIN lookup: Detailed error for {method_name}: {e}", exc_info=True)
                 continue
         
-        # No ASIN found
+        # No ASIN found - create detailed error message
+        if verbose:
+            self.logger.info(f"ASIN lookup summary for '{title}' by {author or 'unknown author'}:")
+            self.logger.info(f"  Methods attempted: {methods_attempted}")
+            for method, error in source_errors.items():
+                self.logger.info(f"  {method}: {error}")
+        
+        # Create detailed error message
+        if source_errors:
+            error_details = "; ".join([f"{method}: {error}" for method, error in source_errors.items()])
+            error_message = f"No ASIN found. Sources attempted: {error_details}"
+        else:
+            error_message = f"No ASIN sources available for the requested sources: {search_sources}"
+        
         self.logger.info(f"No ASIN found for '{title}' by {author or 'unknown author'}")
         return ASINLookupResult(
             query_title=title,
             query_author=author,
             asin=None,
-            metadata=None,
+            metadata=source_errors,  # Pass source errors as metadata for debugging
             source=None,
             success=False,
-            error="No ASIN found from any source",
+            error=error_message,
             lookup_time=time.time() - start_time,
             from_cache=False
         )

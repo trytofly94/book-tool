@@ -130,9 +130,15 @@ def lookup(
         
         if result.asin:
             console.print(f"[green]ASIN found: {result.asin}[/green]")
+            if result.source:
+                console.print(f"[cyan]Source: {result.source}[/cyan]")
+            if result.lookup_time:
+                console.print(f"[dim]Lookup time: {result.lookup_time:.2f}s[/dim]")
+            if result.from_cache:
+                console.print("[dim](from cache)[/dim]")
             
-            # Display additional metadata if available
-            if result.metadata:
+            # Display additional metadata if available (but not error metadata)
+            if result.metadata and isinstance(result.metadata, dict) and not all(isinstance(v, str) for v in result.metadata.values()):
                 table = Table(title="Book Metadata")
                 table.add_column("Field", style="cyan")
                 table.add_column("Value", style="white")
@@ -145,6 +151,21 @@ def lookup(
             console.print("[yellow]No ASIN found[/yellow]")
             if result.error:
                 console.print(f"[red]Error: {result.error}[/red]")
+            
+            # In verbose mode, show detailed error information
+            if verbose and result.metadata and isinstance(result.metadata, dict):
+                console.print("\n[yellow]Detailed source information:[/yellow]")
+                error_table = Table(title="Source Lookup Results")
+                error_table.add_column("Source", style="cyan")
+                error_table.add_column("Result", style="white")
+                
+                for source, error in result.metadata.items():
+                    error_table.add_row(source, str(error))
+                
+                console.print(error_table)
+            
+            if result.lookup_time:
+                console.print(f"[dim]Total lookup time: {result.lookup_time:.2f}s[/dim]")
             
     except Exception as e:
         logger.error(f"ASIN lookup failed: {e}")
