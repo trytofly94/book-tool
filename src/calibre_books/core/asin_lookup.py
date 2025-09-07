@@ -26,6 +26,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 from ..utils.logging import LoggerMixin
 from .book import Book, ASINLookupResult
+from .cache import create_cache_manager
 
 if TYPE_CHECKING:
     from ..config.manager import ConfigManager
@@ -52,21 +53,42 @@ class ASINLookupService(LoggerMixin):
         # Get ASIN lookup specific configuration with error handling
         try:
             asin_config = config_manager.get_asin_config()
-            self.cache_path = Path(asin_config.get('cache_path', '~/.book-tool/asin_cache.json')).expanduser()
+            cache_config = asin_config.get('cache', {})
+            
+            # Determine cache backend and path
+            cache_backend = cache_config.get('backend', 'sqlite')
+            if cache_backend == 'sqlite':
+                self.cache_path = Path(cache_config.get('path', '~/.book-tool/asin_cache.db')).expanduser()
+            else:
+                self.cache_path = Path(cache_config.get('path', '~/.book-tool/asin_cache.json')).expanduser()
+            
             self.sources = asin_config.get('sources', ['amazon', 'goodreads', 'openlibrary'])
             self.rate_limit = asin_config.get('rate_limit', 2.0)
             
-            self.logger.debug(f"Initialized ASIN lookup with sources: {self.sources}, cache: {self.cache_path}")
+            # Cache configuration
+            self.cache_ttl_days = cache_config.get('ttl_days', 30)
+            self.cache_backend = cache_backend
+            self.auto_cleanup = cache_config.get('auto_cleanup', True)
+            
+            self.logger.debug(f"Initialized ASIN lookup with sources: {self.sources}, cache: {self.cache_path} ({cache_backend})")
         except Exception as e:
             self.logger.warning(f"Failed to load ASIN config, using defaults: {e}")
-            self.cache_path = Path('~/.book-tool/asin_cache.json').expanduser()
+            self.cache_path = Path('~/.book-tool/asin_cache.db').expanduser()
             self.sources = ['amazon', 'goodreads', 'openlibrary']
             self.rate_limit = 2.0
+            self.cache_ttl_days = 30
+            self.cache_backend = 'sqlite'
+            self.auto_cleanup = True
         
-        self.logger.info(f"Initialized ASIN lookup service with sources: {self.sources}")
+        self.logger.info(f"Initialized ASIN lookup service with sources: {self.sources}, cache backend: {self.cache_backend}")
         
-        # Initialize cache manager
-        self.cache_manager = CacheManager(self.cache_path)
+        # Initialize cache manager with new architecture
+        self.cache_manager = create_cache_manager(
+            self.cache_path,
+            backend=self.cache_backend,
+            ttl_days=self.cache_ttl_days,
+            auto_cleanup=self.auto_cleanup
+        )
         
         # User agents for web scraping - updated for 2025
         self.user_agents = [
@@ -177,9 +199,9 @@ class ASINLookupService(LoggerMixin):
                 if asin and self.validate_asin(asin):
                     self.logger.info(f"ASIN found via {method_name}: {asin}")
                     
-                    # Cache the result
+                    # Cache the result with source and confidence information
                     if use_cache:
-                        self.cache_manager.cache_asin(cache_key, asin)
+                        self.cache_manager.cache_asin(cache_key, asin, source=method_name, confidence_score=1.0)
                     
                     return ASINLookupResult(
                         query_title=title,
@@ -312,9 +334,9 @@ class ASINLookupService(LoggerMixin):
                 if asin and self.validate_asin(asin):
                     self.logger.info(f"ASIN found via {method_name}: {asin}")
                     
-                    # Cache the result
+                    # Cache the result with source and confidence information
                     if use_cache:
-                        self.cache_manager.cache_asin(cache_key, asin)
+                        self.cache_manager.cache_asin(cache_key, asin, source=method_name, confidence_score=1.0)
                     
                     return ASINLookupResult(
                         query_title=f"ISBN:{isbn}",
@@ -1007,94 +1029,3 @@ class ASINLookupService(LoggerMixin):
         return None
 
 
-class CacheManager:
-    """Manages ASIN lookup cache."""
-    
-    def __init__(self, cache_path: Path):
-        self.cache_path = cache_path
-        self.cache_data = {}
-        self._cache_lock = threading.Lock()
-        self._load_cache()
-    
-    def _load_cache(self):
-        """Load cache from file."""
-        if self.cache_path.exists():
-            try:
-                with open(self.cache_path, 'r') as f:
-                    self.cache_data = json.load(f)
-            except Exception:
-                self.cache_data = {}
-        else:
-            self.cache_data = {}
-            # Ensure cache directory exists
-            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    def _save_cache(self):
-        """Save cache to file."""
-        try:
-            with open(self.cache_path, 'w') as f:
-                json.dump(self.cache_data, f, indent=2)
-        except Exception:
-            pass  # Ignore cache save errors
-    
-    def get_cached_asin(self, cache_key: str) -> Optional[str]:
-        """Get cached ASIN for key."""
-        with self._cache_lock:
-            return self.cache_data.get(cache_key)
-    
-    def cache_asin(self, cache_key: str, asin: str):
-        """Cache an ASIN."""
-        with self._cache_lock:
-            self.cache_data[cache_key] = asin
-            self._save_cache()
-    
-    def get_stats(self):
-        """Get cache statistics."""
-        from dataclasses import dataclass
-        from datetime import datetime
-        
-        @dataclass
-        class Stats:
-            total_entries: int = 0
-            hit_rate: float = 0.0
-            size_human: str = "0 B"
-            last_updated: datetime = datetime.now()
-        
-        with self._cache_lock:
-            total_entries = len(self.cache_data)
-            
-            # Calculate cache file size
-            if self.cache_path.exists():
-                size_bytes = self.cache_path.stat().st_size
-                last_updated = datetime.fromtimestamp(self.cache_path.stat().st_mtime)
-            else:
-                size_bytes = 0
-                last_updated = datetime.now()
-            
-            # Human readable size
-            for unit in ['B', 'KB', 'MB', 'GB']:
-                if size_bytes < 1024.0:
-                    size_human = f"{size_bytes:.1f} {unit}"
-                    break
-                size_bytes /= 1024.0
-            else:
-                size_human = f"{size_bytes:.1f} TB"
-        
-        return Stats(
-            total_entries=total_entries,
-            hit_rate=0.0,  # Would need to track hits/misses for real calculation
-            size_human=size_human,
-            last_updated=last_updated
-        )
-    
-    def clear(self):
-        """Clear all cached entries."""
-        with self._cache_lock:
-            self.cache_data = {}
-            self._save_cache()
-    
-    def cleanup_expired(self) -> int:
-        """Remove expired cache entries."""
-        # For now, we don't implement expiration
-        # Could be added later with timestamp tracking
-        return 0
