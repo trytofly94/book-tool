@@ -124,9 +124,18 @@ def books(
             )
         
         if results:
-            console.print(f"[green]Successfully downloaded {len(results)} books[/green]")
-            for book in results:
-                console.print(f"  • {book.title} by {book.author}")
+            successful = [r for r in results if r.success]
+            failed = [r for r in results if not r.success]
+            
+            if successful:
+                console.print(f"[green]Successfully downloaded {len(successful)} books[/green]")
+                for result in successful:
+                    console.print(f"  • {result.book.title} by {result.book.author}")
+            
+            if failed:
+                console.print(f"[yellow]Failed to download {len(failed)} books[/yellow]")
+                for result in failed:
+                    console.print(f"  • {result.book.title} by {result.book.author}: {result.error}")
         else:
             console.print("[yellow]No books found matching criteria[/yellow]")
             
