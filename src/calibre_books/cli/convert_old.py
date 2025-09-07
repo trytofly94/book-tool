@@ -13,7 +13,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from calibre_books.core.downloader import KFXConverter
+from calibre_books.core.converter import FormatConverter
 from calibre_books.core.file_scanner import FileScanner
 from calibre_books.utils.progress import ProgressManager
 

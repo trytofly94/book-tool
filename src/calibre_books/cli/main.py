@@ -25,6 +25,7 @@ from .asin import asin
 from .convert import convert
 from .config import config as config_cmd
 from .library import library
+from .download import download
 
 console = Console()
 
@@ -131,6 +132,7 @@ def main(
             console.print("  • [bold]process[/bold] - Process existing eBook files")
             console.print("  • [bold]asin[/bold] - Manage ASINs and metadata")
             console.print("  • [bold]convert[/bold] - Convert book formats")
+            console.print("  • [bold]download[/bold] - Download books from various sources")
             console.print("  • [bold]library[/bold] - Manage Calibre library")
             console.print("  • [bold]config[/bold] - Configuration management")
             console.print("\nExample: book-tool process scan -i ./books")
@@ -147,6 +149,7 @@ def main(
 main.add_command(process)
 main.add_command(asin)
 main.add_command(convert)
+main.add_command(download)
 main.add_command(library)
 main.add_command(config_cmd)
 
