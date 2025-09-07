@@ -12,7 +12,7 @@ import shlex
 import re
 from pathlib import Path
 from typing import List, Optional, Dict, Any, TYPE_CHECKING, Tuple, Union
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from ..utils.logging import LoggerMixin
