@@ -9,12 +9,25 @@ import time
 import re
 import json
 import os
+import sys
+import logging
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+
+# Import our localization metadata extractor
+try:
+    from localization_metadata_extractor import LocalizationMetadataExtractor
+except ImportError:
+    LocalizationMetadataExtractor = None
+    print("Warning: LocalizationMetadataExtractor not available. Localization features disabled.")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class ASINLookupService:
     """
@@ -26,6 +39,9 @@ class ASINLookupService:
         self.cache_file = cache_file
         self.rate_limit = rate_limit  # Sekunden zwischen Anfragen
         self.cache = self.load_cache()
+        
+        # Initialize localization support
+        self.localization_extractor = LocalizationMetadataExtractor() if LocalizationMetadataExtractor else None
         
         # User Agents für Web Scraping
         self.user_agents = [
@@ -52,15 +68,82 @@ class ASINLookupService:
         except Exception as e:
             print(f"Cache-Speicherfehler: {e}")
     
-    def lookup_multiple_sources(self, isbn=None, title=None, author=None):
+    def lookup_multiple_sources(self, isbn=None, title=None, author=None, file_path=None):
         """
         Hauptmethode: Sucht ASIN über mehrere Quellen
+        Enhanced with localization support for non-English books
+        
+        Args:
+            isbn: ISBN of the book
+            title: Title of the book (can be localized)
+            author: Author name
+            file_path: Path to book file for metadata extraction
+        """
+        # If file_path is provided, extract localized metadata
+        if file_path and self.localization_extractor:
+            logger.info(f"Extracting localized metadata from: {file_path}")
+            metadata = self.localization_extractor.extract_metadata_from_path(file_path)
+            
+            # Use extracted metadata if available, otherwise fall back to provided values
+            if metadata.get('title'):
+                title = metadata['title']
+                logger.info(f"Using extracted title: {title}")
+            if metadata.get('author'):
+                author = metadata['author']
+            
+            # Generate localized search terms
+            search_terms = self.localization_extractor.get_localized_search_terms(metadata)
+            
+            # Try localized searches first
+            for search_term in search_terms:
+                logger.info(f"Trying localized search: {search_term['title']} ({search_term['language']}) on {search_term['amazon_domain']}")
+                asin = self.lookup_with_localized_terms(search_term, isbn)
+                if asin:
+                    return asin
+        
+        # Fallback to standard lookup
+        return self.lookup_standard_sources(isbn, title, author)
+    
+    def lookup_with_localized_terms(self, search_term, isbn=None):
+        """
+        Perform ASIN lookup with localized search terms
+        """
+        title = search_term['title']
+        author = search_term['author']
+        amazon_domain = search_term['amazon_domain']
+        language = search_term['language']
+        
+        cache_key = f"{isbn}_{title}_{author}_{language}".lower()
+        
+        # Check cache first
+        if cache_key in self.cache:
+            logger.info(f"Cache hit for localized search: {cache_key}")
+            return self.cache[cache_key]
+        
+        # Try localized Amazon search
+        try:
+            asin = self.lookup_via_amazon_search_localized(title, author, amazon_domain)
+            if asin and self.validate_asin(asin):
+                logger.info(f"✓ ASIN found via localized Amazon search ({language}): {asin}")
+                self.cache[cache_key] = asin
+                self.save_cache()
+                return asin
+        except Exception as e:
+            logger.error(f"Error in localized Amazon search: {e}")
+        
+        # Rate limiting
+        time.sleep(self.rate_limit)
+        return None
+    
+    def lookup_standard_sources(self, isbn=None, title=None, author=None):
+        """
+        Standard ASIN lookup methods (fallback)
         """
         cache_key = f"{isbn}_{title}_{author}".lower()
         
         # Prüfe Cache zuerst
         if cache_key in self.cache:
-            print(f"Cache-Treffer für {cache_key}")
+            logger.info(f"Cache hit for standard search: {cache_key}")
             return self.cache[cache_key]
         
         # Methoden in Prioritätsreihenfolge
@@ -73,11 +156,11 @@ class ASINLookupService:
         
         for method_name, method in lookup_methods:
             try:
-                print(f"Versuche {method_name}...")
+                logger.info(f"Trying {method_name}...")
                 asin = method()
                 
                 if asin and self.validate_asin(asin):
-                    print(f"✓ ASIN gefunden via {method_name}: {asin}")
+                    logger.info(f"✓ ASIN found via {method_name}: {asin}")
                     self.cache[cache_key] = asin
                     self.save_cache()
                     return asin
@@ -86,10 +169,10 @@ class ASINLookupService:
                 time.sleep(self.rate_limit)
                 
             except Exception as e:
-                print(f"✗ Fehler bei {method_name}: {e}")
+                logger.error(f"✗ Error in {method_name}: {e}")
                 continue
         
-        print("Keine ASIN gefunden")
+        logger.info("No ASIN found")
         return None
     
     def validate_asin(self, asin):
@@ -160,7 +243,65 @@ class ASINLookupService:
                         return asin
         
         except Exception as e:
-            print(f"Amazon Search Fehler: {e}")
+            logger.error(f"Amazon Search Fehler: {e}")
+        
+        return None
+    
+    def lookup_via_amazon_search_localized(self, title, author, amazon_domain):
+        """
+        Localized Amazon search using specific Amazon domain
+        Enhanced version that searches on country-specific Amazon sites
+        
+        Args:
+            title: Book title (localized)
+            author: Author name
+            amazon_domain: Amazon domain (e.g., amazon.de, amazon.fr)
+        """
+        if not title:
+            return None
+        
+        try:
+            # Erstelle Suchquery
+            query = title
+            if author:
+                query = f"{title} {author}"
+            
+            query = query.replace(' ', '+')
+            
+            # Use the specified Amazon domain
+            if amazon_domain == 'amazon.de':
+                url = f"https://www.amazon.de/s?k={query}&i=digital-text"
+            elif amazon_domain == 'amazon.fr':
+                url = f"https://www.amazon.fr/s?k={query}&i=digital-text"
+            elif amazon_domain == 'amazon.es':
+                url = f"https://www.amazon.es/s?k={query}&i=digital-text"
+            elif amazon_domain == 'amazon.it':
+                url = f"https://www.amazon.it/s?k={query}&i=digital-text"
+            else:
+                # Default to amazon.com
+                url = f"https://www.amazon.com/s?k={query}&i=digital-text"
+            
+            headers = {'User-Agent': self.user_agents[0]}
+            logger.info(f"Searching {amazon_domain} for: {query}")
+            
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Suche nach Produkten mit data-asin Attribut
+                products = soup.find_all(attrs={'data-asin': True})
+                
+                for product in products:
+                    asin = product.get('data-asin')
+                    if asin and asin.startswith('B'):
+                        logger.info(f"Found ASIN {asin} on {amazon_domain}")
+                        return asin
+            else:
+                logger.warning(f"Amazon search returned status {response.status_code}")
+        
+        except Exception as e:
+            logger.error(f"Localized Amazon Search Error on {amazon_domain}: {e}")
         
         return None
     
@@ -333,48 +474,73 @@ class ASINLookupService:
         }
 
 def test_asin_lookup():
-    """Test der ASIN-Lookup Funktionalität"""
+    """Test der ASIN-Lookup Funktionalität mit Lokalisierung"""
     
     lookup_service = ASINLookupService()
     
-    # Test-Bücher
+    print("=== Enhanced ASIN Lookup Test with Localization ===")
+    
+    # Test with actual German book file
+    test_file = '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn1_kinder-des-nebels.epub'
+    
+    if os.path.exists(test_file):
+        print(f"\n=== Testing with real German book file ===")
+        print(f"File: {os.path.basename(test_file)}")
+        
+        # Test localized lookup
+        asin = lookup_service.lookup_multiple_sources(file_path=test_file)
+        
+        if asin:
+            print(f"✓ ASIN found: {asin}")
+        else:
+            print("✗ No ASIN found")
+    
+    else:
+        print(f"Test file not found: {test_file}")
+        print("Continuing with manual test cases...")
+    
+    # Test-Bücher für manuellen Test
     test_books = [
         {
-            'id': 'sturmlicht_1',
-            'isbn': '9783641095949',
-            'title': 'Der Weg der Könige', 
-            'author': 'Brandon Sanderson'
+            'id': 'mistborn_german',
+            'title': 'Kinder des Nebels',
+            'author': 'Brandon Sanderson',
+            'expected_language': 'de'
         },
         {
-            'id': 'sturmlicht_2', 
-            'title': 'Words of Radiance',
-            'author': 'Brandon Sanderson'
+            'id': 'mistborn_english',
+            'title': 'Mistborn',
+            'author': 'Brandon Sanderson',
+            'expected_language': 'en'
+        },
+        {
+            'id': 'stormlight_german',
+            'title': 'Der Weg der Könige',
+            'author': 'Brandon Sanderson',
+            'expected_language': 'de'
         }
     ]
     
-    print("=== ASIN Lookup Test ===")
+    print("\n=== Manual Test Cases ===")
     
     for book in test_books:
-        print(f"\nSuche ASIN für: {book['title']} von {book['author']}")
+        print(f"\nTesting: {book['title']} by {book['author']} ({book['expected_language']})")
         
-        asin = lookup_service.lookup_multiple_sources(
-            isbn=book.get('isbn'),
+        # Test standard lookup (for comparison)
+        asin = lookup_service.lookup_standard_sources(
             title=book['title'],
             author=book['author']
         )
         
         if asin:
-            print(f"✓ Gefunden: {asin}")
+            print(f"✓ ASIN found via standard lookup: {asin}")
         else:
-            print("✗ Keine ASIN gefunden")
+            print("✗ No ASIN found via standard lookup")
+        
+        print("-" * 50)
     
-    # Batch-Test
-    print(f"\n=== Batch Lookup Test ===")
-    results = lookup_service.batch_lookup(test_books)
-    
-    print(f"Erfolgreich: {len(results['success'])}")
-    print(f"Fehlgeschlagen: {len(results['failed'])}")
-    print(f"Ergebnisse: {results['success']}")
+    print("\n=== Test completed ===")
+    print("Note: For full localization testing, ensure the test EPUB file is available.")
 
 if __name__ == "__main__":
     test_asin_lookup()
