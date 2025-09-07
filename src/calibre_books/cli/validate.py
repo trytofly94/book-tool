@@ -144,16 +144,28 @@ def scan(
         
         # Perform validation
         results = []
-        with ProgressManager("Validating eBook files", disable=quiet) as progress:
+        if quiet:
+            # No progress display in quiet mode
             results = validator.validate_directory(
                 input_dir,
                 recursive=recursive,
                 formats=formats,
                 use_cache=not no_cache,
-                progress_callback=progress.update,
+                progress_callback=None,
                 parallel=parallel,
                 max_workers=workers,
             )
+        else:
+            with ProgressManager("Validating eBook files") as progress:
+                results = validator.validate_directory(
+                    input_dir,
+                    recursive=recursive,
+                    formats=formats,
+                    use_cache=not no_cache,
+                    progress_callback=progress.update,
+                    parallel=parallel,
+                    max_workers=workers,
+                )
         
         # Display results
         if results:

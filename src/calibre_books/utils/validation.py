@@ -418,12 +418,13 @@ def detect_file_format(file_path: Path) -> Tuple[Optional[str], Optional[str]]:
     """
     try:
         # First try using Python's built-in magic number detection
-        magic_bytes = _detect_format_by_magic_bytes(file_path)
-        if magic_bytes:
-            return magic_bytes, None
+        magic_format = _detect_format_by_magic_bytes(file_path)
+        if magic_format:
+            return magic_format, None
         
         # Fall back to system 'file' command if available
         try:
+            # Try with --mime-type first
             result = subprocess.run(
                 ['file', '--mime-type', '--brief', str(file_path)],
                 capture_output=True,
@@ -434,7 +435,26 @@ def detect_file_format(file_path: Path) -> Tuple[Optional[str], Optional[str]]:
             if result.returncode == 0:
                 mime_type = result.stdout.strip()
                 format_name = _mime_to_format(mime_type)
-                return format_name, mime_type
+                if format_name:
+                    return format_name, mime_type
+            
+            # Try without --mime-type to get descriptive output
+            result = subprocess.run(
+                ['file', '--brief', str(file_path)],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            
+            if result.returncode == 0:
+                description = result.stdout.strip().lower()
+                if 'mobipocket' in description:
+                    return 'mobi', description
+                elif 'epub' in description:
+                    return 'epub', description
+                elif 'pdf' in description:
+                    return 'pdf', description
+                
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
             
@@ -448,8 +468,8 @@ def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
     """Detect file format using magic bytes."""
     try:
         with open(file_path, 'rb') as f:
-            # Read first 16 bytes for magic number detection
-            header = f.read(16)
+            # Read first 100 bytes to capture MOBI signatures at offset 60
+            header = f.read(100)
         
         if not header:
             return None
@@ -468,13 +488,17 @@ def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
             except zipfile.BadZipFile:
                 return 'corrupted_zip'
         
-        # MOBI files
-        if header[60:68] == b'BOOKMOBI' or header[60:68] == b'TPZ3':
-            return 'mobi'
+        # MOBI files (check for signature at offset 60)
+        if len(header) >= 68:
+            mobi_signature = header[60:68]
+            if mobi_signature == b'BOOKMOBI':
+                return 'mobi'
+            elif mobi_signature == b'TPZ3\x00\x00\x00\x00':
+                return 'azw3'
         
-        # AZW/AZW3 files (similar to MOBI)
-        if b'TPZ' in header or header[60:64] == b'TPZ3':
-            return 'azw3'
+        # Alternative MOBI/AZW detection for other signatures
+        if b'TPZ' in header[:100]:
+            return 'azw'
         
         # PDF files
         if header.startswith(b'%PDF'):
@@ -530,6 +554,10 @@ def _mime_to_format(mime_type: str) -> Optional[str]:
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
         'application/octet-stream': 'binary',
     }
+    
+    # Handle special cases where file command gives specific descriptions
+    if 'mobipocket' in mime_type.lower():
+        return 'mobi'
     
     return mime_mapping.get(mime_type)
 
