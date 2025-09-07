@@ -186,7 +186,7 @@ class TestConfigInitKFXPluginWarning(TestKFXDocumentationIntegration):
         
         # Mock FormatConverter to simulate missing plugin
         with patch('calibre_books.cli.config.ConfigManager', return_value=mock_config_manager), \
-             patch('calibre_books.cli.config.FormatConverter') as mock_converter_class:
+             patch('calibre_books.core.converter.FormatConverter') as mock_converter_class:
             
             mock_converter = Mock()
             mock_converter_class.return_value = mock_converter
@@ -220,7 +220,7 @@ class TestConfigInitKFXPluginWarning(TestKFXDocumentationIntegration):
         
         # Mock FormatConverter to simulate plugin present
         with patch('calibre_books.cli.config.ConfigManager', return_value=mock_config_manager), \
-             patch('calibre_books.cli.config.FormatConverter') as mock_converter_class:
+             patch('calibre_books.core.converter.FormatConverter') as mock_converter_class:
             
             mock_converter = Mock()
             mock_converter_class.return_value = mock_converter
@@ -251,7 +251,7 @@ class TestConfigInitKFXPluginWarning(TestKFXDocumentationIntegration):
         
         # Mock FormatConverter to raise exception
         with patch('calibre_books.cli.config.ConfigManager', return_value=mock_config_manager), \
-             patch('calibre_books.cli.config.FormatConverter', side_effect=Exception("Import error")):
+             patch('calibre_books.core.converter.FormatConverter', side_effect=Exception("Import error")):
             
             # Create mock context
             ctx = {'dry_run': False}
@@ -308,7 +308,7 @@ class TestEndToEndValidation(TestKFXDocumentationIntegration):
         mock_config_manager.create_config = Mock()
         
         with patch('calibre_books.cli.config.ConfigManager', return_value=mock_config_manager), \
-             patch('calibre_books.cli.config.FormatConverter') as mock_converter_class:
+             patch('calibre_books.core.converter.FormatConverter') as mock_converter_class:
             
             mock_converter = Mock()
             mock_converter_class.return_value = mock_converter

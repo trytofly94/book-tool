@@ -37,7 +37,7 @@ class TestKFXPluginValidation:
     @pytest.fixture
     def kfx_converter(self, mock_config_manager):
         """KFXConverter instance with mocked config."""
-        with patch('calibre_books.core.downloader.ParallelKFXConverter'):
+        with patch('calibre_books.core.downloader.ParallelKFXConverter', create=True):
             return KFXConverter(mock_config_manager)
 
 
@@ -121,7 +121,7 @@ class TestKFXConverterPluginValidation(TestKFXPluginValidation):
                 'kfx_plugin_required': True
             }
             
-            with patch('calibre_books.core.downloader.FormatConverter') as mock_converter_class:
+            with patch('calibre_books.core.converter.FormatConverter') as mock_converter_class:
                 mock_converter = Mock()
                 mock_converter_class.return_value = mock_converter
                 mock_converter.validate_kfx_plugin.return_value = True
@@ -131,7 +131,7 @@ class TestKFXConverterPluginValidation(TestKFXPluginValidation):
     
     def test_validate_kfx_plugin_handles_exception(self, kfx_converter):
         """Test that KFXConverter handles exceptions during plugin validation."""
-        with patch('calibre_books.core.downloader.FormatConverter', side_effect=Exception("Import error")):
+        with patch('calibre_books.core.converter.FormatConverter', side_effect=Exception("Import error")):
             assert kfx_converter.validate_kfx_plugin() is False
     
     def test_check_system_requirements_includes_kfx_plugin(self, kfx_converter):
