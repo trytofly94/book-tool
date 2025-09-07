@@ -242,7 +242,7 @@ class LocalizationMetadataExtractor:
     
     def get_localized_search_terms(self, metadata: Dict[str, str]) -> List[Dict[str, str]]:
         """
-        Generate search terms optimized for different regions/languages
+        Generate search terms optimized for different regions/languages with comprehensive fallback mechanisms
         Returns list of search term dictionaries with appropriate Amazon domains
         """
         search_terms = []
@@ -250,48 +250,174 @@ class LocalizationMetadataExtractor:
         title = metadata.get('title', '')
         author = metadata.get('author', '')
         language = metadata.get('language', 'en')
+        series = metadata.get('series', '')
         
-        # Normalize language code
-        lang_code = language.lower()
-        if lang_code in ['deu']:
-            lang_code = 'de'
-        elif lang_code in ['eng']:
-            lang_code = 'en'
+        # Handle case where title is empty (corrupted metadata)
+        if not title:
+            logger.warning("No title found in metadata, using fallback strategies")
+            if series:
+                title = series  # Use series name as title fallback
+            elif author:
+                title = author  # Last resort: use author name
+            else:
+                return []  # Can't search without any text
         
-        # Primary search with detected language
+        # Normalize language code with fallbacks
+        lang_code = self._normalize_language_code(language)
+        
+        # === PRIMARY SEARCHES ===
+        
+        # 1. Primary search with detected language and localized title
         if lang_code in self.language_mappings:
             search_terms.append({
                 'title': title,
                 'author': author,
                 'language': lang_code,
                 'amazon_domain': self.language_mappings[lang_code]['amazon_domain'],
-                'priority': 1
+                'priority': 1,
+                'strategy': 'localized_primary'
             })
         
-        # Fallback to English if not English already
+        # 2. English equivalent search (if not already English)
         if lang_code != 'en':
-            # Try to find English equivalent title
             english_title = self._find_english_equivalent(title, author)
-            search_terms.append({
-                'title': english_title or title,
-                'author': author,
-                'language': 'en',
-                'amazon_domain': 'amazon.com',
-                'priority': 2
-            })
+            if english_title:
+                search_terms.append({
+                    'title': english_title,
+                    'author': author,
+                    'language': 'en',
+                    'amazon_domain': 'amazon.com',
+                    'priority': 2,
+                    'strategy': 'english_equivalent'
+                })
         
-        # Additional search with series name if available
-        series = metadata.get('series', '')
-        if series:
+        # === FALLBACK SEARCHES ===
+        
+        # 3. Series-based search (if available)
+        if series and series.strip():
             search_terms.append({
                 'title': f"{series} {author}",
                 'author': author,
                 'language': lang_code,
                 'amazon_domain': self.language_mappings.get(lang_code, {}).get('amazon_domain', 'amazon.com'),
-                'priority': 3
+                'priority': 3,
+                'strategy': 'series_based'
+            })
+            
+            # Also try series-based English search
+            if lang_code != 'en':
+                search_terms.append({
+                    'title': f"{series} {author}",
+                    'author': author,
+                    'language': 'en',
+                    'amazon_domain': 'amazon.com',
+                    'priority': 4,
+                    'strategy': 'series_english'
+                })
+        
+        # 4. Author-only search (last resort)
+        if author:
+            search_terms.append({
+                'title': author,
+                'author': author,
+                'language': 'en',
+                'amazon_domain': 'amazon.com',
+                'priority': 5,
+                'strategy': 'author_only'
             })
         
+        # 5. Title variations (clean, simplified titles)
+        cleaned_title = self._clean_title_for_search(title)
+        if cleaned_title != title:
+            search_terms.append({
+                'title': cleaned_title,
+                'author': author,
+                'language': lang_code,
+                'amazon_domain': self.language_mappings.get(lang_code, {}).get('amazon_domain', 'amazon.com'),
+                'priority': 6,
+                'strategy': 'cleaned_title'
+            })
+        
+        # 6. Cross-language fallbacks for common languages
+        cross_language_domains = self._get_cross_language_fallbacks(lang_code)
+        for i, domain in enumerate(cross_language_domains):
+            search_terms.append({
+                'title': title,
+                'author': author,
+                'language': domain.split('.')[1] if '.' in domain else 'en',
+                'amazon_domain': domain,
+                'priority': 7 + i,
+                'strategy': f'cross_language_{domain}'
+            })
+        
+        # Sort by priority and return
+        search_terms.sort(key=lambda x: x['priority'])
         return search_terms
+    
+    def _normalize_language_code(self, language: str) -> str:
+        """
+        Normalize and validate language codes with fallbacks
+        """
+        if not language:
+            return 'en'  # Default to English
+        
+        lang_code = language.lower().strip()
+        
+        # Handle common variations
+        if lang_code in ['deu', 'ger']:
+            return 'de'
+        elif lang_code in ['eng']:
+            return 'en'
+        elif lang_code in ['fra', 'fre']:
+            return 'fr'
+        elif lang_code in ['spa']:
+            return 'es'
+        elif lang_code in ['ita']:
+            return 'it'
+        
+        # Return as-is if it's a known code
+        if lang_code in self.language_mappings:
+            return lang_code
+        
+        # Default fallback
+        return 'en'
+    
+    def _clean_title_for_search(self, title: str) -> str:
+        """
+        Clean title for better search results
+        Remove common noise words and formatting
+        """
+        if not title:
+            return title
+        
+        # Remove series numbers and markers
+        cleaned = re.sub(r'\s+(0?\d+)\s*[-–]\s*', ' ', title)
+        
+        # Remove parenthetical information
+        cleaned = re.sub(r'\([^)]*\)', '', cleaned)
+        
+        # Remove brackets
+        cleaned = re.sub(r'\[[^\]]*\]', '', cleaned)
+        
+        # Clean up whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+        
+        return cleaned
+    
+    def _get_cross_language_fallbacks(self, primary_language: str) -> List[str]:
+        """
+        Get cross-language fallback domains based on primary language
+        """
+        # Define fallback chains based on language relationships
+        fallback_chains = {
+            'de': ['amazon.com'],  # German -> English
+            'fr': ['amazon.com'],  # French -> English  
+            'es': ['amazon.com'],  # Spanish -> English
+            'it': ['amazon.com'],  # Italian -> English
+            'en': ['amazon.de', 'amazon.fr'],  # English -> German, French
+        }
+        
+        return fallback_chains.get(primary_language, ['amazon.com'])
     
     def _find_english_equivalent(self, title: str, author: str = '') -> Optional[str]:
         """
@@ -315,59 +441,201 @@ class LocalizationMetadataExtractor:
     
     def extract_metadata_from_path(self, file_path: str) -> Dict[str, str]:
         """
-        Main method to extract metadata from any supported file type
+        Main method to extract metadata from any supported file type with robust error handling
         """
+        # Initialize empty metadata for fallback
+        fallback_metadata = {
+            'title': '',
+            'language': '',
+            'author': '',
+            'original_title': '',
+            'series': '',
+            'series_index': '',
+        }
+        
         if not os.path.exists(file_path):
             logger.error(f"File not found: {file_path}")
-            return {}
+            # Still try filename extraction even if file doesn't exist
+            return self.extract_from_filename(file_path)
         
         file_extension = Path(file_path).suffix.lower()
+        filename = os.path.basename(file_path)
         
+        # Try to extract from file content first
         try:
             if file_extension == '.epub':
-                return self.extract_from_epub(file_path)
+                metadata = self.extract_from_epub(file_path)
+                if self._is_metadata_valid(metadata):
+                    logger.info(f"Successfully extracted EPUB metadata from {filename}")
+                    return metadata
+                else:
+                    logger.warning(f"Invalid EPUB metadata extracted from {filename}, trying filename fallback")
+                    
             elif file_extension in ['.mobi', '.azw', '.azw3']:
-                return self.extract_from_mobi(file_path)
+                metadata = self.extract_from_mobi(file_path)
+                if self._is_metadata_valid(metadata):
+                    logger.info(f"Successfully extracted MOBI metadata from {filename}")
+                    return metadata
+                else:
+                    logger.warning(f"Invalid MOBI metadata extracted from {filename}, trying filename fallback")
             else:
                 logger.warning(f"Unsupported file type: {file_extension}. Using filename extraction.")
-                return self.extract_from_filename(file_path)
+                
         except Exception as e:
             logger.error(f"Error extracting metadata from {file_path}: {e}")
-            # Fallback to filename extraction
-            return self.extract_from_filename(file_path)
+            # Check if this might be a corrupted file
+            if self._is_likely_corrupted(file_path, e):
+                logger.warning(f"File {filename} appears to be corrupted or not a valid {file_extension} file")
+        
+        # Fallback to filename extraction
+        logger.info(f"Using filename-based extraction for {filename}")
+        filename_metadata = self.extract_from_filename(file_path)
+        
+        # Merge filename metadata with any partial file metadata
+        if 'metadata' in locals() and metadata:
+            return self._merge_metadata(metadata, filename_metadata)
+        else:
+            return filename_metadata
+    
+    def _is_metadata_valid(self, metadata: Dict[str, str]) -> bool:
+        """
+        Check if extracted metadata contains meaningful information
+        """
+        if not metadata:
+            return False
+        
+        # Must have at least title or author
+        title = metadata.get('title', '').strip()
+        author = metadata.get('author', '').strip()
+        
+        if not title and not author:
+            return False
+        
+        # Check for obviously corrupted data
+        if title and len(title) < 2:  # Title too short
+            return False
+        
+        if author and len(author) < 2:  # Author name too short
+            return False
+        
+        return True
+    
+    def _is_likely_corrupted(self, file_path: str, error: Exception) -> bool:
+        """
+        Determine if a file is likely corrupted based on error patterns
+        """
+        error_str = str(error).lower()
+        
+        # Common corruption indicators
+        corruption_indicators = [
+            'not a zip file',
+            'bad zipfile',
+            'corrupt',
+            'invalid',
+            'unexpected eof',
+            'file is not a zip file',
+            'bad magic number',
+        ]
+        
+        if any(indicator in error_str for indicator in corruption_indicators):
+            return True
+        
+        # Check file size (too small files are likely corrupted)
+        try:
+            file_size = os.path.getsize(file_path)
+            if file_size < 1024:  # Less than 1KB is suspicious for an ebook
+                return True
+        except:
+            pass
+        
+        return False
+    
+    def _merge_metadata(self, primary: Dict[str, str], fallback: Dict[str, str]) -> Dict[str, str]:
+        """
+        Merge two metadata dictionaries, using primary when available, fallback otherwise
+        """
+        merged = {}
+        
+        for key in ['title', 'language', 'author', 'original_title', 'series', 'series_index']:
+            primary_value = primary.get(key, '').strip()
+            fallback_value = fallback.get(key, '').strip()
+            
+            # Use primary if it has content, otherwise use fallback
+            merged[key] = primary_value if primary_value else fallback_value
+        
+        return merged
 
 def test_localization_extractor():
-    """Test the localization metadata extractor with sample files"""
+    """Test the localization metadata extractor with sample files including fallback mechanisms"""
     extractor = LocalizationMetadataExtractor()
     
-    # Test file path
-    test_file = '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn1_kinder-des-nebels.epub'
+    print("=== Testing Enhanced Localization Metadata Extractor with Fallbacks ===")
     
-    if os.path.exists(test_file):
-        print("=== Testing Localization Metadata Extractor ===")
+    # Test files from the pipeline directory
+    test_files = [
+        '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn1_kinder-des-nebels.epub',
+        '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_sturmlicht1_weg-der-koenige.epub',  # Known corrupted
+        '/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_skyward1_ruf-der-sterne.epub',
+    ]
+    
+    for test_file in test_files:
+        filename = os.path.basename(test_file)
+        print(f"\n{'='*60}")
+        print(f"Testing: {filename}")
+        print(f"{'='*60}")
+        
+        # Test metadata extraction with fallback mechanisms
         metadata = extractor.extract_metadata_from_path(test_file)
         
-        print(f"File: {os.path.basename(test_file)}")
-        print(f"Title: {metadata.get('title')}")
-        print(f"Language: {metadata.get('language')}")
-        print(f"Author: {metadata.get('author')}")
-        print(f"Series: {metadata.get('series')}")
+        print(f"✓ Extracted Metadata:")
+        print(f"  Title: {metadata.get('title', 'N/A')}")
+        print(f"  Language: {metadata.get('language', 'N/A')}")
+        print(f"  Author: {metadata.get('author', 'N/A')}")
+        print(f"  Series: {metadata.get('series', 'N/A')}")
         
-        print("\n=== Generated Search Terms ===")
-        search_terms = extractor.get_localized_search_terms(metadata)
-        for i, term in enumerate(search_terms, 1):
-            print(f"{i}. {term['title']} by {term['author']} "
-                  f"({term['language']}) -> {term['amazon_domain']}")
+        # Test fallback search terms generation
+        if metadata and (metadata.get('title') or metadata.get('author')):
+            print(f"\n✓ Generated Search Terms (with fallbacks):")
+            search_terms = extractor.get_localized_search_terms(metadata)
+            
+            for i, term in enumerate(search_terms[:8], 1):  # Show first 8 search terms
+                strategy = term.get('strategy', 'unknown')
+                priority = term.get('priority', '?')
+                print(f"  {i}. [{strategy}] P{priority}: '{term['title']}' by {term['author']} "
+                      f"({term['language']}) -> {term['amazon_domain']}")
+            
+            if len(search_terms) > 8:
+                print(f"  ... and {len(search_terms) - 8} more fallback strategies")
+        else:
+            print("✗ No usable metadata extracted")
     
-    else:
-        print(f"Test file not found: {test_file}")
-        print("Testing with filename extraction...")
-        
-        test_filename = "sanderson_mistborn1_kinder-des-nebels.epub"
-        metadata = extractor.extract_from_filename(test_filename)
-        
-        print(f"Filename: {test_filename}")
-        print(f"Extracted: {metadata}")
+    # Test edge cases
+    print(f"\n{'='*60}")
+    print("Testing Edge Cases")
+    print(f"{'='*60}")
+    
+    # Test with non-existent file
+    print("\n--- Non-existent file test ---")
+    fake_file = "/nonexistent/sanderson_test_book.epub"
+    metadata = extractor.extract_metadata_from_path(fake_file)
+    print(f"Non-existent file metadata: {metadata}")
+    
+    # Test with empty metadata
+    print("\n--- Empty metadata fallback test ---")
+    empty_metadata = {}
+    search_terms = extractor.get_localized_search_terms(empty_metadata)
+    print(f"Empty metadata search terms: {len(search_terms)} terms generated")
+    
+    # Test language code normalization
+    print("\n--- Language code normalization test ---")
+    test_languages = ['deu', 'ger', 'eng', 'fra', 'spa', 'ita', 'unknown', '']
+    for lang in test_languages:
+        normalized = extractor._normalize_language_code(lang)
+        print(f"  {lang} -> {normalized}")
+    
+    print(f"\n{'='*60}")
+    print("✓ Enhanced fallback testing completed")
+    print(f"{'='*60}")
 
 if __name__ == "__main__":
     test_localization_extractor()
