@@ -189,6 +189,20 @@ def init(
         console.print("  book-tool config edit")
         console.print("  book-tool config show")
         
+        # Check KFX plugin availability and warn if missing
+        try:
+            from ..core.converter import FormatConverter
+            
+            temp_converter = FormatConverter(config_manager)
+            
+            if not temp_converter.validate_kfx_plugin():
+                console.print("\n[yellow]Warning: KFX Output plugin not detected[/yellow]")
+                console.print("KFX conversion will not work without this plugin.")
+                console.print("Install it via: Calibre → Preferences → Plugins → Get new plugins → 'KFX Output'")
+                console.print("See: https://github.com/trytofly94/book-tool#kfx-conversion-prerequisites")
+        except Exception:
+            pass  # Don't fail config init if plugin check fails
+        
     except Exception as e:
         logger.error(f"Configuration initialization failed: {e}")
         console.print(f"[red]Configuration initialization failed: {e}[/red]")

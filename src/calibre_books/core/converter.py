@@ -51,12 +51,43 @@ class FormatConverter(LoggerMixin):
         self.logger.info(f"Initialized format converter with output path: {self.output_path}")
     
     def validate_kfx_plugin(self) -> bool:
-        """Validate that KFX Input plugin is available in Calibre."""
+        """Validate that KFX Output plugin is available in Calibre."""
+        import subprocess
+        import re
+        
         self.logger.info("Validating KFX plugin availability")
         
-        # TODO: Implement actual plugin validation
-        # This is a placeholder implementation
-        return True
+        try:
+            # Run calibre-customize to list plugins
+            result = subprocess.run(
+                ['calibre-customize', '-l'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            
+            if result.returncode != 0:
+                self.logger.error(f"Failed to list Calibre plugins: {result.stderr}")
+                return False
+            
+            # Check for KFX Output plugin
+            kfx_pattern = r'KFX Output.*Convert ebooks to KFX format'
+            if re.search(kfx_pattern, result.stdout, re.IGNORECASE):
+                self.logger.info("KFX Output plugin found and available")
+                return True
+            else:
+                self.logger.warning("KFX Output plugin not found. Please install it via Calibre Preferences → Plugins")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self.logger.error("Timeout while checking Calibre plugins")
+            return False
+        except FileNotFoundError:
+            self.logger.error("calibre-customize command not found. Please install Calibre CLI tools")
+            return False
+        except Exception as e:
+            self.logger.error(f"Unexpected error checking KFX plugin: {e}")
+            return False
     
     def convert_kfx_batch(
         self,
