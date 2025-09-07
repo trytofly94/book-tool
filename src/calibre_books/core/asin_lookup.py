@@ -68,11 +68,13 @@ class ASINLookupService(LoggerMixin):
         # Initialize cache manager
         self.cache_manager = CacheManager(self.cache_path)
         
-        # User agents for web scraping
+        # User agents for web scraping - updated for 2025
         self.user_agents = [
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
         ]
         
         # Thread lock for cache operations
@@ -447,82 +449,196 @@ class ASINLookupService(LoggerMixin):
         return None
     
     def _lookup_via_amazon_search(self, title: str, author: Optional[str], verbose: bool = False) -> Optional[str]:
-        """Web scraping of Amazon search results."""
+        """Web scraping of Amazon search results with retry logic and multiple strategies."""
         if not title:
             self.logger.debug("Amazon search: No title provided")
             return None
         
-        try:
-            # Create search query
-            query = title
-            if author:
-                query = f"{title} {author}"
-            
-            query_encoded = query.replace(' ', '+')
-            url = f"https://www.amazon.com/s?k={query_encoded}&i=digital-text"
-            
-            if verbose:
-                self.logger.info(f"Amazon search: Searching for '{query}' -> URL: {url}")
-            else:
-                self.logger.debug(f"Amazon search: Searching for '{query}'")
-            
-            headers = {'User-Agent': self.user_agents[0]}
-            self.logger.debug(f"Amazon search: Using User-Agent: {headers['User-Agent'][:50]}...")
-            
-            response = requests.get(url, headers=headers, timeout=10)
-            
-            self.logger.debug(f"Amazon search: Response status: {response.status_code}, content length: {len(response.content)} bytes")
-            
-            if verbose:
-                self.logger.info(f"Amazon search: Response headers: {dict(response.headers)}")
-            
-            if response.status_code == 200:
-                soup = BeautifulSoup(response.content, 'html.parser')
-                
-                # Look for products with data-asin attribute
-                products = soup.find_all(attrs={'data-asin': True})
-                self.logger.debug(f"Amazon search: Found {len(products)} products with data-asin attribute")
-                
-                # Log some sample ASINs found
-                sample_asins = []
-                for product in products[:5]:  # Check first 5 for debugging
-                    asin = product.get('data-asin')
-                    if asin:
-                        sample_asins.append(asin)
-                
-                if verbose and sample_asins:
-                    self.logger.info(f"Amazon search: Sample ASINs found: {sample_asins}")
-                
-                for product in products:
-                    asin = product.get('data-asin')
-                    if asin and asin.startswith('B') and len(asin) == 10:
-                        self.logger.debug(f"Amazon search: Found valid ASIN: {asin}")
-                        return asin
-                
-                # If no valid ASINs found, try alternative selectors
-                self.logger.debug("Amazon search: No valid ASINs found with data-asin, trying alternative selectors")
-                
-                # Try to find ASINs in links
-                asin_links = soup.find_all('a', href=True)
-                for link in asin_links[:20]:  # Check first 20 links
-                    href = link.get('href', '')
-                    asin_match = re.search(r'/dp/([B][A-Z0-9]{9})', href)
-                    if asin_match:
-                        asin = asin_match.group(1)
-                        self.logger.debug(f"Amazon search: Found ASIN in link: {asin}")
-                        return asin
-                
-            else:
-                self.logger.warning(f"Amazon search: HTTP {response.status_code} response")
-                if verbose:
-                    self.logger.info(f"Amazon search: Response content preview: {response.text[:500]}")
-                        
-        except Exception as e:
-            self.logger.debug(f"Amazon search lookup failed: {e}")
-            if verbose:
-                self.logger.error(f"Amazon search detailed error: {e}", exc_info=True)
+        # Multiple search strategies to try
+        search_strategies = [
+            # Strategy 1: Books section search
+            {'i': 'stripbooks', 'section': 'books'},
+            # Strategy 2: Kindle eBooks section
+            {'i': 'digital-text', 'section': 'kindle'},
+            # Strategy 3: All departments
+            {'section': 'all-departments'},
+        ]
         
-        self.logger.debug("Amazon search: No ASIN found")
+        for strategy_idx, strategy in enumerate(search_strategies):
+            try:
+                # Create search query
+                query = title
+                if author:
+                    query = f"{title} {author}"
+                
+                # URL encode the query properly
+                import urllib.parse
+                query_encoded = urllib.parse.quote_plus(query)
+                
+                # Build URL based on strategy
+                if 'i' in strategy:
+                    url = f"https://www.amazon.com/s?k={query_encoded}&i={strategy['i']}"
+                else:
+                    url = f"https://www.amazon.com/s?k={query_encoded}"
+                
+                if verbose:
+                    self.logger.info(f"Amazon search: Strategy {strategy_idx + 1} ({strategy['section']}) for '{query}' -> URL: {url}")
+                else:
+                    self.logger.debug(f"Amazon search: Strategy {strategy_idx + 1} for '{query}'")
+                
+                # Try with different user agents and retry logic
+                for attempt in range(3):  # 3 attempts per strategy
+                    try:
+                        # Rotate user agents
+                        user_agent = self.user_agents[attempt % len(self.user_agents)]
+                        headers = {
+                            'User-Agent': user_agent,
+                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.5',
+                            'Accept-Encoding': 'gzip, deflate',
+                            'DNT': '1',
+                            'Connection': 'keep-alive',
+                            'Upgrade-Insecure-Requests': '1',
+                        }
+                        
+                        if verbose and attempt == 0:
+                            self.logger.info(f"Amazon search: Using User-Agent: {user_agent[:60]}...")
+                        
+                        response = requests.get(url, headers=headers, timeout=15)
+                        
+                        self.logger.debug(f"Amazon search: Attempt {attempt + 1}, status: {response.status_code}, content length: {len(response.content)} bytes")
+                        
+                        if verbose and attempt == 0:
+                            response_headers = dict(response.headers)
+                            # Remove sensitive headers for logging
+                            safe_headers = {k: v for k, v in response_headers.items() if k.lower() not in ['set-cookie']}
+                            self.logger.info(f"Amazon search: Response headers: {safe_headers}")
+                        
+                        if response.status_code == 200:
+                            soup = BeautifulSoup(response.content, 'html.parser')
+                            
+                            # Multiple selector strategies for finding ASINs
+                            asin_found = self._extract_asin_from_amazon_page(soup, verbose, strategy['section'])
+                            if asin_found:
+                                return asin_found
+                            
+                        elif response.status_code == 503:
+                            self.logger.debug(f"Amazon search: Service unavailable (503), retrying with different user agent")
+                            time.sleep(2 ** attempt)  # Exponential backoff
+                            continue
+                        elif response.status_code == 429:
+                            self.logger.debug(f"Amazon search: Rate limited (429), backing off")
+                            time.sleep(5 * (attempt + 1))  # Linear backoff for rate limiting
+                            continue
+                        else:
+                            self.logger.warning(f"Amazon search: HTTP {response.status_code} response")
+                            if verbose:
+                                self.logger.info(f"Amazon search: Response content preview: {response.text[:500]}")
+                            break  # Don't retry for other HTTP errors
+                            
+                    except requests.exceptions.Timeout:
+                        self.logger.debug(f"Amazon search: Timeout on attempt {attempt + 1}")
+                        if attempt < 2:  # Don't sleep on last attempt
+                            time.sleep(1)
+                        continue
+                    except requests.exceptions.ConnectionError as e:
+                        self.logger.debug(f"Amazon search: Connection error on attempt {attempt + 1}: {e}")
+                        if attempt < 2:
+                            time.sleep(2)
+                        continue
+                
+                # Small delay between strategies to be respectful
+                time.sleep(1)
+                        
+            except Exception as e:
+                self.logger.debug(f"Amazon search strategy {strategy_idx + 1} failed: {e}")
+                if verbose:
+                    self.logger.error(f"Amazon search detailed error for strategy {strategy_idx + 1}: {e}", exc_info=True)
+                continue
+        
+        self.logger.debug("Amazon search: No ASIN found with any strategy")
+        return None
+    
+    def _extract_asin_from_amazon_page(self, soup: BeautifulSoup, verbose: bool, section: str) -> Optional[str]:
+        """Extract ASIN from Amazon search page using multiple selector strategies."""
+        
+        # Strategy 1: data-asin attributes (most common)
+        products = soup.find_all(attrs={'data-asin': True})
+        self.logger.debug(f"Amazon search ({section}): Found {len(products)} products with data-asin attribute")
+        
+        # Log some sample ASINs found for debugging
+        sample_asins = []
+        for product in products[:5]:  # Check first 5 for debugging
+            asin = product.get('data-asin')
+            if asin:
+                sample_asins.append(asin)
+        
+        if verbose and sample_asins:
+            self.logger.info(f"Amazon search ({section}): Sample ASINs found: {sample_asins}")
+        
+        # Look for valid book ASINs (start with 'B' and are 10 chars)
+        for product in products:
+            asin = product.get('data-asin')
+            if asin and asin.startswith('B') and len(asin) == 10:
+                self.logger.debug(f"Amazon search ({section}): Found valid ASIN: {asin}")
+                return asin
+        
+        # Strategy 2: ASINs in href attributes of links
+        self.logger.debug(f"Amazon search ({section}): No valid ASINs in data-asin, trying href links")
+        asin_links = soup.find_all('a', href=True)
+        
+        for link in asin_links[:30]:  # Check first 30 links
+            href = link.get('href', '')
+            # Look for patterns like /dp/B123456789, /gp/product/B123456789, etc.
+            asin_patterns = [
+                r'/dp/([B][A-Z0-9]{9})',
+                r'/gp/product/([B][A-Z0-9]{9})',
+                r'ASIN=([B][A-Z0-9]{9})',
+                r'asin=([B][A-Z0-9]{9})',
+            ]
+            
+            for pattern in asin_patterns:
+                asin_match = re.search(pattern, href)
+                if asin_match:
+                    asin = asin_match.group(1)
+                    self.logger.debug(f"Amazon search ({section}): Found ASIN in link: {asin} (pattern: {pattern})")
+                    return asin
+        
+        # Strategy 3: Look in JavaScript/JSON data on page
+        self.logger.debug(f"Amazon search ({section}): Trying to extract from page scripts")
+        scripts = soup.find_all('script', string=True)
+        
+        for script in scripts[:10]:  # Check first 10 scripts
+            script_content = script.string
+            if script_content and 'asin' in script_content.lower():
+                # Look for ASIN patterns in JavaScript
+                asin_matches = re.findall(r'"asin"\s*:\s*"([B][A-Z0-9]{9})"', script_content, re.IGNORECASE)
+                if asin_matches:
+                    asin = asin_matches[0]
+                    self.logger.debug(f"Amazon search ({section}): Found ASIN in script: {asin}")
+                    return asin
+                
+                # Alternative JS pattern
+                asin_matches = re.findall(r'["\']([B][A-Z0-9]{9})["\']', script_content)
+                if asin_matches:
+                    asin = asin_matches[0]
+                    self.logger.debug(f"Amazon search ({section}): Found ASIN candidate in script: {asin}")
+                    return asin
+        
+        # Strategy 4: Check meta tags or other elements  
+        self.logger.debug(f"Amazon search ({section}): Trying meta tags and other elements")
+        
+        # Check for ASINs in various element attributes
+        elements_with_ids = soup.find_all(attrs={'id': re.compile(r'.*[Bb][A-Z0-9]{9}.*')})
+        for elem in elements_with_ids:
+            elem_id = elem.get('id', '')
+            asin_match = re.search(r'([B][A-Z0-9]{9})', elem_id)
+            if asin_match:
+                asin = asin_match.group(1)
+                self.logger.debug(f"Amazon search ({section}): Found ASIN in element ID: {asin}")
+                return asin
+        
+        self.logger.debug(f"Amazon search ({section}): No ASIN found with any extraction method")
         return None
     
     def _lookup_via_google_books(self, isbn: Optional[str], title: Optional[str], author: Optional[str], verbose: bool = False) -> Optional[str]:
