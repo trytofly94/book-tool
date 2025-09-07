@@ -131,6 +131,15 @@ class ASINLookupService(LoggerMixin):
         search_sources = sources or self.sources
         
         # Try different lookup methods in priority order
+        # Map source names to method names for filtering
+        source_method_mapping = {
+            'amazon': 'amazon-search',
+            'amazon-search': 'amazon-search', 
+            'goodreads': 'google-books',  # Goodreads data comes via Google Books API
+            'google-books': 'google-books',
+            'openlibrary': 'openlibrary'
+        }
+        
         lookup_methods = [
             ('amazon-search', lambda: self._lookup_via_amazon_search(title, author, verbose)),
             ('google-books', lambda: self._lookup_via_google_books(None, title, author, verbose)),
@@ -142,8 +151,15 @@ class ASINLookupService(LoggerMixin):
         methods_attempted = []
         
         for method_name, method in lookup_methods:
-            # Skip if source not in requested sources
-            if not any(source in method_name for source in search_sources):
+            # Skip if source not in requested sources using proper mapping
+            method_should_run = False
+            for requested_source in search_sources:
+                mapped_method = source_method_mapping.get(requested_source, requested_source)
+                if mapped_method == method_name:
+                    method_should_run = True
+                    break
+            
+            if not method_should_run:
                 continue
                 
             methods_attempted.append(method_name)
@@ -259,6 +275,15 @@ class ASINLookupService(LoggerMixin):
         search_sources = sources or self.sources
         
         # Try different lookup methods in priority order for ISBN
+        # Map source names to method names for filtering
+        source_method_mapping = {
+            'amazon': 'isbn-direct',
+            'amazon-search': 'isbn-direct',
+            'goodreads': 'google-books',  # Goodreads data comes via Google Books API
+            'google-books': 'google-books',
+            'openlibrary': 'openlibrary'
+        }
+        
         lookup_methods = [
             ('isbn-direct', lambda: self._lookup_by_isbn_direct(isbn)),
             ('google-books', lambda: self._lookup_via_google_books(isbn, None, None, verbose)),
@@ -266,8 +291,15 @@ class ASINLookupService(LoggerMixin):
         ]
         
         for method_name, method in lookup_methods:
-            # Skip if source not in requested sources
-            if not any(source in method_name for source in search_sources):
+            # Skip if source not in requested sources using proper mapping
+            method_should_run = False
+            for requested_source in search_sources:
+                mapped_method = source_method_mapping.get(requested_source, requested_source)
+                if mapped_method == method_name:
+                    method_should_run = True
+                    break
+            
+            if not method_should_run:
                 continue
                 
             try:
@@ -405,9 +437,14 @@ class ASINLookupService(LoggerMixin):
         return results
     
     def validate_asin(self, asin: str) -> bool:
-        """Validate ASIN format."""
-        from ..utils.validation import validate_asin
-        return validate_asin(asin)
+        """Validate ASIN format - specifically for Amazon ASINs (not ISBNs)."""
+        if not asin or not isinstance(asin, str):
+            return False
+        
+        # Amazon ASINs for books start with 'B' and are exactly 10 characters
+        # Pattern: B followed by 9 alphanumeric characters
+        asin_pattern = re.compile(r'^B[A-Z0-9]{9}$')
+        return bool(asin_pattern.match(asin.upper()))
     
     def check_availability(self, asin: str, progress_callback=None):
         """Check if ASIN is available on Amazon."""
