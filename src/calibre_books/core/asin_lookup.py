@@ -27,6 +27,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from ..utils.logging import LoggerMixin
 from .book import Book, ASINLookupResult
 from .cache import create_cache_manager
+from .rate_limiter import DomainRateLimiter, RateLimitedSession, RateLimitConfig
 
 if TYPE_CHECKING:
     from ..config.manager import ConfigManager
@@ -70,6 +71,14 @@ class ASINLookupService(LoggerMixin):
             self.cache_backend = cache_backend
             self.auto_cleanup = cache_config.get('auto_cleanup', True)
             
+            # Rate limiting configuration
+            performance_config = asin_config.get('performance', {})
+            self.max_parallel = performance_config.get('max_parallel', 4)
+            self.connection_pool_size = performance_config.get('connection_pool_size', 10)
+            
+            # Per-domain rate limits
+            rate_limits = performance_config.get('rate_limits', {})
+            
             self.logger.debug(f"Initialized ASIN lookup with sources: {self.sources}, cache: {self.cache_path} ({cache_backend})")
         except Exception as e:
             self.logger.warning(f"Failed to load ASIN config, using defaults: {e}")
@@ -79,6 +88,9 @@ class ASINLookupService(LoggerMixin):
             self.cache_ttl_days = 30
             self.cache_backend = 'sqlite'
             self.auto_cleanup = True
+            self.max_parallel = 4
+            self.connection_pool_size = 10
+            rate_limits = {}
         
         self.logger.info(f"Initialized ASIN lookup service with sources: {self.sources}, cache backend: {self.cache_backend}")
         
@@ -90,6 +102,25 @@ class ASINLookupService(LoggerMixin):
             auto_cleanup=self.auto_cleanup
         )
         
+        # Initialize rate limiter with custom configurations
+        custom_rate_configs = {}
+        for domain, limit_config in rate_limits.items():
+            if isinstance(limit_config, (int, float)):
+                # Simple rate limit number
+                custom_rate_configs[domain] = RateLimitConfig(requests_per_second=float(limit_config))
+            elif isinstance(limit_config, dict):
+                # Detailed configuration
+                custom_rate_configs[domain] = RateLimitConfig(**limit_config)
+        
+        self.rate_limiter = DomainRateLimiter(custom_rate_configs)
+        
+        # Create rate-limited session for HTTP requests
+        self.http_session = RateLimitedSession(
+            self.rate_limiter,
+            pool_connections=self.connection_pool_size,
+            pool_maxsize=self.connection_pool_size * 2
+        )
+        
         # User agents for web scraping - updated for 2025
         self.user_agents = [
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
@@ -99,7 +130,7 @@ class ASINLookupService(LoggerMixin):
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
         ]
         
-        # Thread lock for cache operations
+        # Thread lock for cache operations (still needed for some operations)
         self._cache_lock = threading.Lock()
     
     def lookup_by_title(
@@ -221,8 +252,7 @@ class ASINLookupService(LoggerMixin):
                             self.logger.info(f"ASIN lookup: {method_name} returned no results")
                     source_errors[method_name] = "No valid ASIN found"
                 
-                # Rate limiting between attempts
-                time.sleep(self.rate_limit)
+                # Rate limiting is now handled by the RateLimitedSession automatically
                 
             except Exception as e:
                 error_msg = str(e)
@@ -349,8 +379,7 @@ class ASINLookupService(LoggerMixin):
                         from_cache=False
                     )
                 
-                # Rate limiting between attempts
-                time.sleep(self.rate_limit)
+                # Rate limiting is now handled by the RateLimitedSession automatically
                 
             except Exception as e:
                 self.logger.warning(f"Lookup method {method_name} failed: {e}")
@@ -428,8 +457,7 @@ class ASINLookupService(LoggerMixin):
                 if progress_callback:
                     progress_callback(description=f"Submitted lookup {i+1}/{len(books)}: {book.title}")
                 
-                # Stagger requests to respect rate limits
-                time.sleep(self.rate_limit / parallel)
+                # Rate limiting is handled automatically by RateLimitedSession
             
             # Collect results as they complete
             for i, future in enumerate(concurrent.futures.as_completed(futures)):
@@ -480,7 +508,7 @@ class ASINLookupService(LoggerMixin):
             url = f"https://www.amazon.com/dp/{asin}"
             headers = {'User-Agent': self.user_agents[0]}
             
-            response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+            response = self.http_session.get(url, headers=headers, timeout=10, allow_redirects=True)
             
             # Check if we got a valid product page
             if response.status_code == 200:
@@ -525,7 +553,7 @@ class ASINLookupService(LoggerMixin):
             url = f"https://www.amazon.com/dp/{clean_isbn}"
             headers = {'User-Agent': self.user_agents[0]}
             
-            response = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
+            response = self.http_session.get(url, headers=headers, allow_redirects=True, timeout=10)
             
             if response.status_code == 200:
                 # Look for ASIN in the final URL
@@ -596,7 +624,7 @@ class ASINLookupService(LoggerMixin):
                         if verbose and attempt == 0:
                             self.logger.info(f"Amazon search: Using User-Agent: {user_agent[:60]}...")
                         
-                        response = requests.get(url, headers=headers, timeout=15)
+                        response = self.http_session.get(url, headers=headers, timeout=15)
                         
                         self.logger.debug(f"Amazon search: Attempt {attempt + 1}, status: {response.status_code}, content length: {len(response.content)} bytes")
                         
@@ -784,7 +812,7 @@ class ASINLookupService(LoggerMixin):
                             'Accept': 'application/json',
                         }
                         
-                        response = requests.get(url, headers=headers, timeout=15)
+                        response = self.http_session.get(url, headers=headers, timeout=15)
                         
                         self.logger.debug(f"Google Books ({strategy_name}): Attempt {attempt + 1}, status: {response.status_code}, content length: {len(response.content)} bytes")
                         
@@ -944,7 +972,7 @@ class ASINLookupService(LoggerMixin):
                 else:
                     self.logger.debug(f"OpenLibrary: ISBN lookup for {clean_isbn}")
                 
-                response = requests.get(url, timeout=10)
+                response = self.http_session.get(url, timeout=10)
                 
                 self.logger.debug(f"OpenLibrary: ISBN response status: {response.status_code}")
                 
@@ -988,7 +1016,7 @@ class ASINLookupService(LoggerMixin):
                 else:
                     self.logger.debug(f"OpenLibrary: Title/author search for '{search_query}'")
                 
-                search_response = requests.get(search_url, timeout=10)
+                search_response = self.http_session.get(search_url, timeout=10)
                 
                 self.logger.debug(f"OpenLibrary: Search response status: {search_response.status_code}")
                 
@@ -1027,5 +1055,36 @@ class ASINLookupService(LoggerMixin):
         
         self.logger.debug("OpenLibrary: No ASIN found")
         return None
+    
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get comprehensive performance statistics."""
+        # Get cache stats
+        cache_stats = self.cache_manager.get_stats()
+        
+        # Get rate limiter stats
+        rate_limit_stats = self.rate_limiter.get_all_stats()
+        
+        return {
+            'cache': cache_stats,
+            'rate_limiting': rate_limit_stats,
+            'configuration': {
+                'sources': self.sources,
+                'max_parallel': self.max_parallel,
+                'connection_pool_size': self.connection_pool_size,
+                'cache_backend': self.cache_backend,
+                'cache_ttl_days': self.cache_ttl_days
+            }
+        }
+    
+    def close(self):
+        """Clean up resources."""
+        if hasattr(self, 'http_session'):
+            self.http_session.close()
+        if hasattr(self, 'cache_manager'):
+            self.cache_manager.close()
+    
+    def __del__(self):
+        """Cleanup when object is destroyed."""
+        self.close()
 
 
