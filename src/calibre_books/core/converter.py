@@ -53,6 +53,38 @@ class FormatConverter(LoggerMixin):
         
         self.logger.info(f"Initialized format converter with output path: {self.output_path}")
     
+    def check_system_requirements(self) -> Dict[str, bool]:
+        """
+        Check system requirements for conversion operations.
+        
+        Returns:
+            Dict mapping requirement name to availability status
+        """
+        requirements = {}
+        
+        # Check Calibre tools
+        try:
+            subprocess.run(['calibre', '--version'], 
+                         check=True, capture_output=True, timeout=10)
+            requirements['calibre'] = True
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            requirements['calibre'] = False
+            
+        try:
+            subprocess.run(['ebook-convert', '--version'], 
+                         check=True, capture_output=True, timeout=10)
+            requirements['ebook-convert'] = True
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            requirements['ebook-convert'] = False
+            
+        # Check KFX plugin
+        requirements['kfx_plugin'] = self.validate_kfx_plugin()
+        
+        # Kindle Previewer is not required for basic conversion
+        requirements['kindle_previewer'] = True
+        
+        return requirements
+
     def validate_kfx_plugin(self) -> bool:
         """Validate that KFX Output plugin is available in Calibre."""
         import subprocess
