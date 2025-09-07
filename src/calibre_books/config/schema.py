@@ -16,6 +16,10 @@ class DownloadConfig(BaseModel):
     default_format: str = Field(default="mobi", description="Default download format")
     download_path: str = Field(default="~/Downloads/Books", description="Download directory")
     librarian_path: str = Field(default="librarian", description="Path to librarian CLI")
+    max_parallel: int = Field(default=1, ge=1, le=8, description="Max parallel downloads")
+    quality: str = Field(default="high", description="Download quality preference")
+    search_timeout: int = Field(default=60, ge=10, le=300, description="Search timeout in seconds")
+    download_timeout: int = Field(default=300, ge=60, le=3600, description="Download timeout in seconds")
     
     @field_validator('default_format')
     @classmethod
@@ -24,6 +28,19 @@ class DownloadConfig(BaseModel):
         if v.lower() not in valid_formats:
             raise ValueError(f"Invalid format: {v}. Must be one of: {valid_formats}")
         return v.lower()
+    
+    @field_validator('quality')
+    @classmethod
+    def validate_quality(cls, v):
+        valid_qualities = {'high', 'medium', 'low'}
+        if v.lower() not in valid_qualities:
+            raise ValueError(f"Invalid quality: {v}. Must be one of: {valid_qualities}")
+        return v.lower()
+    
+    @field_validator('download_path')
+    @classmethod
+    def expand_path(cls, v):
+        return str(Path(v).expanduser())
 
 
 class CalibreConfig(BaseModel):
@@ -139,6 +156,8 @@ class ConfigurationSchema(BaseModel):
             'download': {
                 'default_format': 'mobi',
                 'download_path': '~/Downloads/Books',
+                'librarian_path': 'librarian',
+                'max_parallel': 1,
             },
             'calibre': {
                 'library_path': '~/Calibre-Library',
@@ -159,6 +178,10 @@ download:
   default_format: mobi          # Preferred download format (mobi, epub, pdf, azw3)
   download_path: ~/Downloads/Books  # Directory for downloaded books
   librarian_path: librarian     # Path to librarian CLI tool
+  max_parallel: 1               # Maximum parallel downloads (1-8)
+  quality: high                 # Download quality preference (high, medium, low)
+  search_timeout: 60            # Search timeout in seconds (10-300)
+  download_timeout: 300         # Download timeout in seconds (60-3600)
 
 # Calibre integration settings  
 calibre:
