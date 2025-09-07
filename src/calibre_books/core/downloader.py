@@ -1,20 +1,215 @@
 """
-KFX conversion module for Calibre Books CLI.
+Book downloader and KFX conversion module for Calibre Books CLI.
 
-This module provides functionality for converting eBook files to KFX format
-for Goodreads integration, using the existing parallel converter logic.
+This module provides functionality for downloading books and converting eBook 
+files to KFX format for Goodreads integration.
 """
 
 import subprocess
 import concurrent.futures
+import json
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
+from dataclasses import dataclass
 
 from ..utils.logging import LoggerMixin
 from .book import Book, ConversionResult, BookFormat
 
 if TYPE_CHECKING:
     from ..config.manager import ConfigManager
+
+
+@dataclass
+class BookInfo:
+    """Information about a book to download."""
+    title: str
+    author: str
+    format: str = "mobi"
+
+
+@dataclass
+class DownloadResult:
+    """Result of a book download operation."""
+    book: BookInfo
+    filepath: Optional[Path]
+    success: bool
+    error: Optional[str] = None
+
+
+class BookDownloader(LoggerMixin):
+    """
+    Book download service for various sources.
+    
+    Currently supports librarian CLI integration for book downloads.
+    """
+
+    def __init__(self, config: Dict[str, Any]):
+        """
+        Initialize book downloader.
+        
+        Args:
+            config: Download configuration dictionary
+        """
+        super().__init__()
+        self.config = config
+        self.download_path = Path(config.get('download_path', './downloads'))
+        self.preferred_format = config.get('preferred_format', 'mobi')
+        
+        # Ensure download directory exists
+        self.download_path.mkdir(exist_ok=True, parents=True)
+        
+        self.logger.debug(f"BookDownloader initialized with path: {self.download_path}")
+
+    def download_books(
+        self,
+        series: Optional[str] = None,
+        author: Optional[str] = None,
+        title: Optional[str] = None,
+        format: str = "mobi",
+        output_dir: Optional[Path] = None,
+        max_results: int = 10,
+        quality: str = "high",
+        progress_callback: Optional[Callable] = None,
+    ) -> List[DownloadResult]:
+        """
+        Download books based on search criteria.
+        
+        Args:
+            series: Series name to search for
+            author: Author name to search for
+            title: Book title to search for
+            format: Preferred format (mobi, epub, pdf, azw3)
+            output_dir: Output directory for downloads
+            max_results: Maximum number of results to download
+            quality: Quality preference (high, medium, low)
+            progress_callback: Progress callback function
+            
+        Returns:
+            List of download results
+        """
+        self.logger.info("Starting book download with search criteria")
+        
+        # For now, return empty results with a helpful message
+        # This is a stub implementation that prevents CLI crashes
+        results = []
+        
+        # Create a placeholder result indicating functionality is not yet implemented
+        placeholder_book = BookInfo(
+            title=title or f"Books by {author}" if author else f"Series: {series}",
+            author=author or "Unknown Author",
+            format=format
+        )
+        
+        results.append(DownloadResult(
+            book=placeholder_book,
+            filepath=None,
+            success=False,
+            error="BookDownloader functionality is not yet fully implemented. Please use legacy scripts for now."
+        ))
+        
+        return results
+
+    def download_batch(
+        self,
+        books: List[BookInfo],
+        format: str = "mobi",
+        output_dir: Optional[Path] = None,
+        parallel: int = 1,
+        progress_callback: Optional[Callable] = None,
+    ) -> List[DownloadResult]:
+        """
+        Download multiple books from a list.
+        
+        Args:
+            books: List of books to download
+            format: Preferred format
+            output_dir: Output directory
+            parallel: Number of parallel downloads
+            progress_callback: Progress callback function
+            
+        Returns:
+            List of download results
+        """
+        self.logger.info(f"Starting batch download of {len(books)} books")
+        
+        results = []
+        for book in books:
+            results.append(DownloadResult(
+                book=book,
+                filepath=None,
+                success=False,
+                error="BookDownloader batch functionality is not yet fully implemented."
+            ))
+        
+        return results
+
+    def download_from_url(
+        self,
+        url: str,
+        output_dir: Optional[Path] = None,
+        filename: Optional[str] = None,
+        progress_callback: Optional[Callable] = None,
+    ) -> DownloadResult:
+        """
+        Download book from direct URL.
+        
+        Args:
+            url: Direct URL to download from
+            output_dir: Output directory
+            filename: Custom filename
+            progress_callback: Progress callback function
+            
+        Returns:
+            Download result
+        """
+        self.logger.info(f"Starting URL download from: {url}")
+        
+        placeholder_book = BookInfo(
+            title=filename or "URL Download",
+            author="Unknown",
+            format="unknown"
+        )
+        
+        return DownloadResult(
+            book=placeholder_book,
+            filepath=None,
+            success=False,
+            error="URL download functionality is not yet fully implemented."
+        )
+
+    def parse_book_list(self, file_path: Path) -> List[BookInfo]:
+        """
+        Parse book list from file.
+        
+        Args:
+            file_path: Path to file containing book list
+            
+        Returns:
+            List of BookInfo objects
+        """
+        books = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    
+                    parts = line.split('|')
+                    if len(parts) >= 2:
+                        title = parts[0].strip()
+                        author = parts[1].strip()
+                    else:
+                        title = parts[0].strip()
+                        author = "Unknown Author"
+                    
+                    books.append(BookInfo(title=title, author=author))
+                        
+        except Exception as e:
+            self.logger.error(f"Failed to parse book list from {file_path}: {e}")
+            
+        return books
 
 
 class KFXConverter(LoggerMixin):
