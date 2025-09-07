@@ -5,6 +5,7 @@ A professional CLI tool for processing existing eBook files, adding ASIN metadat
 ## Features
 
 - **eBook File Processing**: Scan and analyze existing eBook collections
+- **Book Download**: Search, batch, and URL-based book downloading with parallel processing
 - **ASIN Management**: Automatic lookup and assignment of Amazon Standard Identification Numbers
 - **Calibre Integration**: Seamless integration with Calibre database and metadata management
 - **KFX Conversion**: Parallel conversion to KFX format for enhanced Goodreads integration
@@ -109,6 +110,19 @@ ebook-meta --version
 
 ### CLI Commands
 
+#### Download Books
+```sh
+# Search-based downloads
+book-tool download books --series "Series Name" --author "Author Name"
+book-tool download books --title "Book Title" --format epub --quality high
+
+# Batch downloads from file
+book-tool download batch -i books_list.txt --parallel 3 --dry-run
+
+# Direct URL downloads
+book-tool download url -u "https://example.com/book.mobi" --name "Custom Name"
+```
+
 #### Process existing eBook files
 ```sh
 book-tool process scan -i ./books --check-asin
@@ -155,13 +169,15 @@ Currently, configuration is handled through hardcoded values in individual scrip
 
 ## Development Roadmap
 
-This project is being transformed into a proper CLI tool with:
+This project has been transformed into a proper CLI tool with:
 
-- [ ] Package structure with `setup.py`/`pyproject.toml`
-- [ ] Unified CLI interface with `argparse`
-- [ ] External configuration files
-- [ ] Comprehensive test suite
-- [ ] pip-installable package
+- [x] Package structure with `setup.py`/`pyproject.toml`
+- [x] Unified CLI interface with `argparse`
+- [x] External configuration files
+- [x] Comprehensive test suite (146 tests)
+- [x] Book download functionality (search, batch, URL downloads)
+- [x] Complete Calibre integration
+- [ ] pip-installable package (final packaging)
 - [ ] Enhanced documentation
 
 ## Contributing
