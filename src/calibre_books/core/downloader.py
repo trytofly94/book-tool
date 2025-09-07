@@ -14,6 +14,7 @@ from typing import List, Optional, Dict, Any, Callable, NamedTuple
 from dataclasses import dataclass
 
 from ..utils.logging import LoggerMixin
+from .exceptions import DownloadError, LibrarianError, ValidationError, NetworkError, FormatError, ConfigurationError
 
 
 @dataclass
@@ -62,6 +63,9 @@ class BookDownloader(LoggerMixin):
         self.max_parallel = config.get('max_parallel', 1)
         self.quality = config.get('quality', 'high')
         
+        # Validate configuration
+        self._validate_configuration()
+        
         # Ensure download directory exists
         self.download_path.mkdir(parents=True, exist_ok=True)
         
@@ -76,15 +80,87 @@ class BookDownloader(LoggerMixin):
         self.logger.info(f"System requirements check: {requirements}")
         return requirements
 
+    def _validate_configuration(self):
+        """Validate download configuration."""
+        # Validate librarian path
+        self._validate_librarian_path()
+        
+        # Validate download path
+        if not self.download_path.parent.exists():
+            raise ConfigurationError(
+                f"Parent directory of download path does not exist: {self.download_path.parent}",
+                config_key="download_path",
+                config_value=str(self.download_path)
+            )
+        
+        # Validate max_parallel setting
+        if not isinstance(self.max_parallel, int) or self.max_parallel < 1:
+            raise ConfigurationError(
+                f"max_parallel must be a positive integer, got: {self.max_parallel}",
+                config_key="max_parallel",
+                config_value=str(self.max_parallel)
+            )
+        
+        # Validate quality setting
+        valid_qualities = {'low', 'medium', 'high'}
+        if self.quality not in valid_qualities:
+            raise ConfigurationError(
+                f"quality must be one of {valid_qualities}, got: {self.quality}",
+                config_key="quality",
+                config_value=self.quality
+            )
+    
+    def _validate_librarian_path(self):
+        """Validate that librarian CLI is available and executable."""
+        # Check if path is absolute and executable
+        librarian_path = Path(self.librarian_path)
+        
+        if librarian_path.is_absolute():
+            # Absolute path - check existence and executability directly
+            if not librarian_path.exists():
+                raise ConfigurationError(
+                    f"Librarian executable not found at: {self.librarian_path}",
+                    config_key="librarian_path",
+                    config_value=self.librarian_path
+                )
+            if not os.access(librarian_path, os.X_OK):
+                raise ConfigurationError(
+                    f"Librarian executable is not executable: {self.librarian_path}",
+                    config_key="librarian_path",
+                    config_value=self.librarian_path
+                )
+        else:
+            # Relative path or command name - check if it's in PATH
+            try:
+                result = subprocess.run(
+                    [self.librarian_path, '--help'],
+                    capture_output=True, text=True, timeout=10
+                )
+                if result.returncode != 0:
+                    raise ConfigurationError(
+                        f"Librarian CLI test failed with return code {result.returncode}",
+                        config_key="librarian_path",
+                        config_value=self.librarian_path
+                    )
+            except FileNotFoundError:
+                raise ConfigurationError(
+                    f"Librarian executable not found in PATH: {self.librarian_path}",
+                    config_key="librarian_path",
+                    config_value=self.librarian_path
+                )
+            except subprocess.TimeoutExpired:
+                raise ConfigurationError(
+                    f"Librarian CLI test timed out for: {self.librarian_path}",
+                    config_key="librarian_path",
+                    config_value=self.librarian_path
+                )
+    
     def _check_librarian(self) -> bool:
         """Check if librarian CLI is available."""
         try:
-            result = subprocess.run(
-                [self.librarian_path, '--help'],
-                capture_output=True, text=True, timeout=10
-            )
-            return result.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+            self._validate_librarian_path()
+            return True
+        except ConfigurationError:
             return False
 
     def download_books(
@@ -182,9 +258,12 @@ class BookDownloader(LoggerMixin):
             
             return results
             
-        except Exception as e:
+        except (LibrarianError, NetworkError) as e:
             self.logger.error(f"Download failed: {e}")
             raise
+        except Exception as e:
+            self.logger.error(f"Unexpected download error: {e}")
+            raise DownloadError(f"Download failed: {e}")
 
     def download_batch(
         self,
@@ -227,32 +306,8 @@ class BookDownloader(LoggerMixin):
                 result = self._download_book_request(book, target_dir, format)
                 results.append(result)
         else:
-            # Parallel download
-            with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
-                future_to_book = {
-                    executor.submit(self._download_book_request, book, target_dir, format): book 
-                    for book in books
-                }
-                
-                completed = 0
-                for future in concurrent.futures.as_completed(future_to_book):
-                    completed += 1
-                    if progress_callback:
-                        progress_callback(completed, len(books))
-                    
-                    try:
-                        result = future.result()
-                        results.append(result)
-                    except Exception as exc:
-                        book = future_to_book[future]
-                        self.logger.error(f"Download failed for {book.title}: {exc}")
-                        results.append(DownloadResult(
-                            title=book.title,
-                            author=book.author or "Unknown",
-                            filepath=None,
-                            success=False,
-                            error=str(exc)
-                        ))
+            # Parallel download with improved resource management
+            results = self._download_parallel_with_timeout(books, target_dir, format, parallel, progress_callback)
         
         successful = sum(1 for r in results if r.success)
         self.logger.info(f"Batch download completed: {successful}/{len(results)} successful")
@@ -310,22 +365,10 @@ class BookDownloader(LoggerMixin):
                     ], capture_output=True, text=True, timeout=300)
                 
                 if result.returncode != 0:
-                    return DownloadResult(
-                        title=filename,
-                        author="Unknown",
-                        filepath=None,
-                        success=False,
-                        error=f"Download failed: {result.stderr}"
-                    )
+                    raise NetworkError(f"Download failed: {result.stderr}", url=url)
                     
             except subprocess.TimeoutExpired:
-                return DownloadResult(
-                    title=filename,
-                    author="Unknown", 
-                    filepath=None,
-                    success=False,
-                    error="Download timed out"
-                )
+                raise NetworkError("Download timed out", url=url, timeout=300)
             
             # Check if file was downloaded
             if output_path.exists() and output_path.stat().st_size > 0:
@@ -352,6 +395,24 @@ class BookDownloader(LoggerMixin):
                     error="Downloaded file is empty or missing"
                 )
                 
+        except subprocess.TimeoutExpired:
+            self.logger.error(f"URL download timed out: {url}")
+            return DownloadResult(
+                title=filename or "Unknown",
+                author="Unknown",
+                filepath=None,
+                success=False,
+                error="Download timed out"
+            )
+        except NetworkError as e:
+            self.logger.error(f"Network error downloading {url}: {e}")
+            return DownloadResult(
+                title=filename or "Unknown",
+                author="Unknown",
+                filepath=None,
+                success=False,
+                error=str(e)
+            )
         except Exception as e:
             self.logger.error(f"URL download failed: {e}")
             return DownloadResult(
@@ -366,21 +427,43 @@ class BookDownloader(LoggerMixin):
         """
         Parse book list from file.
         
+        Supported file formats: .txt, .csv
         File format: One book per line, either:
         - "Title" 
         - "Title|Author"
         - "Title|Author|Series"
+        
+        Lines starting with # are treated as comments and ignored.
+        Empty lines are ignored.
         
         Args:
             file_path: Path to file containing book list
             
         Returns:
             List of book requests
+            
+        Raises:
+            ValidationError: If file doesn't exist or has invalid extension
+            FormatError: If file content is malformed or unreadable
         """
+        # Validate file existence
         if not file_path.exists():
-            raise FileNotFoundError(f"Book list file not found: {file_path}")
+            raise ValidationError(f"Book list file not found: {file_path}", field="file_path", value=str(file_path))
+        
+        # Validate file extension
+        allowed_extensions = {'.txt', '.csv'}
+        if file_path.suffix.lower() not in allowed_extensions:
+            raise ValidationError(
+                f"Unsupported file format: {file_path.suffix}. Supported formats: {', '.join(allowed_extensions)}",
+                field="file_extension", value=file_path.suffix
+            )
+        
+        # Check if file is readable
+        if not os.access(file_path, os.R_OK):
+            raise ValidationError(f"File is not readable: {file_path}", field="file_permissions", value=str(file_path))
         
         books = []
+        invalid_lines = []
         
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -389,32 +472,79 @@ class BookDownloader(LoggerMixin):
                     if not line or line.startswith('#'):
                         continue  # Skip empty lines and comments
                     
+                    # Validate line format
+                    if '|' in line:
+                        parts = line.split('|')
+                        # Check for empty parts
+                        if any(not part.strip() for part in parts):
+                            invalid_lines.append(f"Line {line_num}: Empty field in '{line}'")
+                            continue
+                    else:
+                        # Single title - ensure it's not empty after stripping
+                        if not line.strip():
+                            continue
+                    
                     parts = line.split('|')
                     
-                    if len(parts) == 1:
-                        # Just title
-                        books.append(BookRequest(title=parts[0].strip()))
-                    elif len(parts) == 2:
-                        # Title and author
-                        books.append(BookRequest(
-                            title=parts[0].strip(),
-                            author=parts[1].strip()
-                        ))
-                    elif len(parts) >= 3:
-                        # Title, author, and series
-                        books.append(BookRequest(
-                            title=parts[0].strip(),
-                            author=parts[1].strip(),
-                            series=parts[2].strip()
-                        ))
-                    else:
-                        self.logger.warning(f"Skipping invalid line {line_num}: {line}")
+                    try:
+                        if len(parts) == 1:
+                            # Just title
+                            title = parts[0].strip()
+                            if not title:
+                                invalid_lines.append(f"Line {line_num}: Empty title in '{line}'")
+                                continue
+                            books.append(BookRequest(title=title))
+                        elif len(parts) == 2:
+                            # Title and author
+                            title = parts[0].strip()
+                            author = parts[1].strip()
+                            if not title:
+                                invalid_lines.append(f"Line {line_num}: Empty title in '{line}'")
+                                continue
+                            books.append(BookRequest(
+                                title=title,
+                                author=author if author else None
+                            ))
+                        elif len(parts) >= 3:
+                            # Title, author, and series
+                            title = parts[0].strip()
+                            author = parts[1].strip()
+                            series = parts[2].strip()
+                            if not title:
+                                invalid_lines.append(f"Line {line_num}: Empty title in '{line}'")
+                                continue
+                            books.append(BookRequest(
+                                title=title,
+                                author=author if author else None,
+                                series=series if series else None
+                            ))
+                        else:
+                            invalid_lines.append(f"Line {line_num}: Invalid format '{line}'")
+                    except Exception as e:
+                        invalid_lines.append(f"Line {line_num}: Error processing '{line}': {e}")
                         
+        except UnicodeDecodeError as e:
+            self.logger.error(f"File encoding error in {file_path}: {e}")
+            raise FormatError(f"Unable to read file {file_path}: invalid encoding", filename=str(file_path))
+        except PermissionError as e:
+            self.logger.error(f"Permission denied reading {file_path}: {e}")
+            raise ValidationError(f"Permission denied reading file: {file_path}")
         except Exception as e:
             self.logger.error(f"Failed to parse book list: {e}")
-            raise ValueError(f"Failed to parse book list from {file_path}: {e}")
+            raise FormatError(f"Failed to parse book list from {file_path}: {e}", filename=str(file_path))
         
-        self.logger.info(f"Parsed {len(books)} books from {file_path}")
+        # Report invalid lines but continue processing
+        if invalid_lines:
+            self.logger.warning(f"Found {len(invalid_lines)} invalid lines in {file_path}:")
+            for invalid_line in invalid_lines[:5]:  # Show first 5 invalid lines
+                self.logger.warning(f"  {invalid_line}")
+            if len(invalid_lines) > 5:
+                self.logger.warning(f"  ... and {len(invalid_lines) - 5} more")
+        
+        if not books:
+            raise FormatError(f"No valid book entries found in {file_path}", filename=str(file_path))
+        
+        self.logger.info(f"Parsed {len(books)} books from {file_path} ({len(invalid_lines)} invalid lines skipped)")
         return books
 
     def _search_books(self, search_query: str, target_dir: Path) -> List[Dict[str, Any]]:
@@ -514,6 +644,14 @@ class BookDownloader(LoggerMixin):
                 success=False,
                 error="Download timed out"
             )
+        except subprocess.CalledProcessError as e:
+            return DownloadResult(
+                title=title,
+                author=author,
+                filepath=None,
+                success=False,
+                error=f"Librarian command failed: {e.stderr if hasattr(e, 'stderr') else str(e)}"
+            )
         except Exception as e:
             return DownloadResult(
                 title=title,
@@ -568,6 +706,14 @@ class BookDownloader(LoggerMixin):
             # Download the book
             return self._download_single_book(best_match, target_dir, format)
             
+        except LibrarianError as e:
+            return DownloadResult(
+                title=book.title,
+                author=book.author or "Unknown",
+                filepath=None,
+                success=False,
+                error=str(e)
+            )
         except Exception as e:
             return DownloadResult(
                 title=book.title,
@@ -577,6 +723,85 @@ class BookDownloader(LoggerMixin):
                 error=str(e)
             )
 
+    def _download_parallel_with_timeout(self, books: List[BookRequest], target_dir: Path, format: str, parallel: int, progress_callback) -> List[DownloadResult]:
+        """Download books in parallel with proper timeout and resource management."""
+        results = []
+        timeout_per_book = 300  # 5 minutes per book
+        
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
+                future_to_book = {
+                    executor.submit(self._download_book_request, book, target_dir, format): book 
+                    for book in books
+                }
+                
+                completed = 0
+                for future in concurrent.futures.as_completed(future_to_book, timeout=timeout_per_book * len(books)):
+                    completed += 1
+                    if progress_callback:
+                        progress_callback(completed, len(books))
+                    
+                    try:
+                        result = future.result(timeout=timeout_per_book)
+                        results.append(result)
+                    except concurrent.futures.TimeoutError:
+                        book = future_to_book[future]
+                        self.logger.error(f"Download timed out for {book.title}")
+                        future.cancel()  # Attempt to cancel the timed-out task
+                        results.append(DownloadResult(
+                            title=book.title,
+                            author=book.author or "Unknown",
+                            filepath=None,
+                            success=False,
+                            error=f"Download timed out after {timeout_per_book} seconds"
+                        ))
+                    except (LibrarianError, NetworkError, DownloadError) as exc:
+                        book = future_to_book[future]
+                        self.logger.error(f"Download failed for {book.title}: {exc}")
+                        results.append(DownloadResult(
+                            title=book.title,
+                            author=book.author or "Unknown",
+                            filepath=None,
+                            success=False,
+                            error=str(exc)
+                        ))
+                    except Exception as exc:
+                        book = future_to_book[future]
+                        self.logger.error(f"Unexpected error downloading {book.title}: {exc}")
+                        results.append(DownloadResult(
+                            title=book.title,
+                            author=book.author or "Unknown",
+                            filepath=None,
+                            success=False,
+                            error=f"Unexpected error: {exc}"
+                        ))
+                        
+        except concurrent.futures.TimeoutError:
+            self.logger.error(f"Overall batch download timed out after {timeout_per_book * len(books)} seconds")
+            # Fill remaining results with timeout errors
+            for book in books[len(results):]:
+                results.append(DownloadResult(
+                    title=book.title,
+                    author=book.author or "Unknown",
+                    filepath=None,
+                    success=False,
+                    error="Batch download timed out"
+                ))
+        except KeyboardInterrupt:
+            self.logger.info("Download interrupted by user")
+            # Fill remaining results with cancellation errors
+            for book in books[len(results):]:
+                results.append(DownloadResult(
+                    title=book.title,
+                    author=book.author or "Unknown",
+                    filepath=None,
+                    success=False,
+                    error="Download cancelled by user"
+                ))
+            raise
+        
+        return results
+    
     def _create_safe_filename(self, title: str, format: str) -> str:
         """Create a safe filename for downloaded books."""
         # Remove invalid characters

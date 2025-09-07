@@ -16,6 +16,9 @@ from calibre_books.core.downloader import (
     DownloadResult, 
     BookRequest
 )
+from calibre_books.core.exceptions import (
+    ValidationError, FormatError, LibrarianError, NetworkError, ConfigurationError
+)
 
 
 class TestDownloadResult:
@@ -107,7 +110,8 @@ class TestBookDownloader:
     @pytest.fixture
     def downloader(self, config):
         """Create BookDownloader instance."""
-        return BookDownloader(config)
+        with patch.object(BookDownloader, '_validate_configuration'):
+            return BookDownloader(config)
     
     def test_downloader_initialization(self, config, temp_dir):
         """Test BookDownloader initialization."""
@@ -425,7 +429,7 @@ class TestBookDownloader:
     
     def test_parse_book_list_nonexistent_file(self, downloader):
         """Test parsing nonexistent book list file."""
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(ValidationError, match="Book list file not found"):
             downloader.parse_book_list(Path("/nonexistent/file.txt"))
     
     def test_parse_book_list_valid_file(self, downloader, temp_dir):
@@ -470,9 +474,8 @@ Book Title 4|Another Author|Another Series|Extra Field"""
         book_list_file = temp_dir / "empty.txt"
         book_list_file.write_text("")
         
-        books = downloader.parse_book_list(book_list_file)
-        
-        assert books == []
+        with pytest.raises(FormatError, match="No valid book entries found"):
+            downloader.parse_book_list(book_list_file)
     
     def test_parse_book_list_comments_only(self, downloader, temp_dir):
         """Test parsing file with only comments."""
@@ -484,9 +487,16 @@ Book Title 4|Another Author|Another Series|Extra Field"""
         book_list_file = temp_dir / "comments.txt"
         book_list_file.write_text(book_list_content)
         
-        books = downloader.parse_book_list(book_list_file)
+        with pytest.raises(FormatError, match="No valid book entries found"):
+            downloader.parse_book_list(book_list_file)
+    
+    def test_parse_book_list_invalid_extension(self, downloader, temp_dir):
+        """Test parsing file with invalid extension."""
+        book_list_file = temp_dir / "books.json"
+        book_list_file.write_text("Some content")
         
-        assert books == []
+        with pytest.raises(ValidationError, match="Unsupported file format"):
+            downloader.parse_book_list(book_list_file)
     
     @patch('subprocess.run')
     def test_search_books_success(self, mock_run, downloader, temp_dir):
