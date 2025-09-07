@@ -423,7 +423,7 @@ class BookDownloader(LoggerMixin):
                 error=str(e)
             )
 
-    def parse_book_list(self, file_path: Path) -> List[BookRequest]:
+    def parse_book_list(self, file_path) -> List[BookRequest]:
         """
         Parse book list from file.
         
@@ -437,7 +437,7 @@ class BookDownloader(LoggerMixin):
         Empty lines are ignored.
         
         Args:
-            file_path: Path to file containing book list
+            file_path: Path to file containing book list (string or Path object)
             
         Returns:
             List of book requests
@@ -446,6 +446,9 @@ class BookDownloader(LoggerMixin):
             ValidationError: If file doesn't exist or has invalid extension
             FormatError: If file content is malformed or unreadable
         """
+        # Convert to Path object if string
+        file_path = Path(file_path)
+        
         # Validate file existence
         if not file_path.exists():
             raise ValidationError(f"Book list file not found: {file_path}", field="file_path", value=str(file_path))
