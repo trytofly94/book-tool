@@ -53,16 +53,21 @@ class TestASINLookupService:
         """Test ASIN format validation."""
         service = ASINLookupService(self.mock_config_manager)
         
-        # Valid ASINs (validation function accepts any alphanumeric, not just B-prefixed)
+        # Valid ASINs (must be B-prefixed for book ASINs)
         assert service.validate_asin("B00ZVA3XL6") is True
         assert service.validate_asin("B123456789") is True
-        assert service.validate_asin("A123456789") is True  # ASINs can start with any letter
+        assert service.validate_asin("B00ABC123D") is True
+        
+        # Also valid (lowercase converted to uppercase)
+        assert service.validate_asin("b00zva3xl6") is True  # Lowercase but valid format
         
         # Invalid ASINs
+        assert service.validate_asin("A123456789") is False  # Non-B prefixed
         assert service.validate_asin("") is False
         assert service.validate_asin("invalid") is False
         assert service.validate_asin("B12345") is False  # Too short
         assert service.validate_asin("B123456789X") is False  # Too long
+        assert service.validate_asin("1123456789") is False  # Starts with number
         assert service.validate_asin(None) is False
 
     @patch('calibre_books.core.asin_lookup.requests.get')
@@ -150,14 +155,17 @@ class TestASINLookupService:
         assert asin is None
     
     @patch('calibre_books.core.asin_lookup.requests.get')
-    def test_google_books_lookup_success(self, mock_get):
+    @patch('time.sleep')  # Mock sleep to avoid delays in tests
+    def test_google_books_lookup_success(self, mock_sleep, mock_get):
         """Test successful Google Books API lookup."""
         service = ASINLookupService(self.mock_config_manager)
         
         # Mock Google Books API response
         mock_response = Mock()
         mock_response.status_code = 200
+        mock_response.content = b'{"totalItems": 1, "items": [...]}'  # Mock content for len()
         mock_response.json.return_value = {
+            "totalItems": 1,
             "items": [
                 {
                     "volumeInfo": {
@@ -176,9 +184,13 @@ class TestASINLookupService:
         asin = service._lookup_via_google_books("9780765326355", "The Way of Kings", "Brandon Sanderson")
         
         assert asin == "B00ZVA3XL6"
-        mock_get.assert_called_once()
-        call_args = mock_get.call_args
-        assert "googleapis.com/books/v1/volumes" in call_args[0][0]
+        assert mock_get.call_count >= 1  # May be called multiple times with different strategies
+        # Check that at least one call was made to Google Books API
+        call_made_to_google_books = any(
+            "googleapis.com/books/v1/volumes" in str(call)
+            for call in mock_get.call_args_list
+        )
+        assert call_made_to_google_books
     
     @patch('calibre_books.core.asin_lookup.requests.get')
     def test_openlibrary_lookup_success(self, mock_get):
@@ -278,7 +290,11 @@ class TestASINLookupService:
             
             assert result.success is False
             assert result.asin is None
-            assert result.error == "No ASIN found from any source"
+            # Check that the error message contains source-specific information
+            assert "No ASIN found" in result.error
+            assert "amazon-search:" in result.error
+            assert "google-books:" in result.error
+            assert "openlibrary:" in result.error
             assert result.from_cache is False
     
     def test_lookup_by_isbn_with_cache_hit(self):
