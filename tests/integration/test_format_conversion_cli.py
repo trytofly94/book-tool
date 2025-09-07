@@ -75,7 +75,7 @@ class TestConvertCLIIntegration:
 class TestConvertKFXCommand(TestConvertCLIIntegration):
     """Test the convert kfx CLI command."""
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     def test_convert_kfx_check_requirements_all_satisfied(self, mock_scanner, mock_converter_class):
         """Test convert kfx --check-requirements when all requirements are satisfied."""
@@ -117,7 +117,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         finally:
             config_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     def test_convert_kfx_check_requirements_missing_components(self, mock_scanner, mock_converter_class):
         """Test convert kfx --check-requirements when components are missing."""
@@ -157,7 +157,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         finally:
             config_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     def test_convert_kfx_plugin_not_available(self, mock_scanner, mock_converter_class):
         """Test convert kfx when KFX plugin is not available."""
@@ -191,7 +191,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         finally:
             config_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_kfx_no_books_found(self, mock_progress, mock_scanner, mock_converter_class):
@@ -236,7 +236,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         finally:
             config_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_kfx_dry_run(self, mock_progress, mock_scanner, mock_converter_class):
@@ -292,7 +292,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         finally:
             config_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_kfx_successful_conversion(self, mock_progress, mock_scanner, mock_converter_class):
@@ -309,7 +309,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
                 Mock(success=True),
                 Mock(success=True)
             ]
-            mock_converter.convert_books_to_kfx.return_value = successful_results
+            mock_converter.convert_batch.return_value = successful_results
             mock_converter_class.return_value = mock_converter
             
             # Mock scanner with test books
@@ -353,15 +353,15 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
                 assert "Successful: 2" in result.output
                 
                 # Verify converter was called with correct parameters
-                mock_converter.convert_books_to_kfx.assert_called_once()
-                call_args = mock_converter.convert_books_to_kfx.call_args
+                mock_converter.convert_batch.assert_called_once()
+                call_args = mock_converter.convert_batch.call_args
                 assert len(call_args[0][0]) == 2  # 2 books
                 assert call_args[1]['output_dir'] == Path(temp_dir)
                 
         finally:
             config_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_kfx_with_failures(self, mock_progress, mock_scanner, mock_converter_class):
@@ -381,7 +381,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
                 Mock(success=True, book=Mock(metadata=Mock(title="Success Book"))),
                 Mock(success=False, book=failed_book, error="Conversion failed")
             ]
-            mock_converter.convert_books_to_kfx.return_value = conversion_results
+            mock_converter.convert_batch.return_value = conversion_results
             mock_converter_class.return_value = mock_converter
             
             # Mock scanner
@@ -420,7 +420,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         finally:
             config_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     def test_convert_kfx_converter_exception(self, mock_converter_class):
         """Test convert kfx handles converter exceptions."""
         config_file = self.create_test_config()
@@ -454,7 +454,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
 class TestConvertSingleCommand(TestConvertCLIIntegration):
     """Test the convert single CLI command."""
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     def test_convert_single_kfx_dry_run(self, mock_scanner, mock_converter_class):
         """Test convert single in dry run mode for KFX format."""
@@ -486,7 +486,7 @@ class TestConvertSingleCommand(TestConvertCLIIntegration):
             config_file.unlink()
             test_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_single_kfx_plugin_not_available(self, mock_progress, mock_scanner, mock_converter_class):
@@ -521,7 +521,7 @@ class TestConvertSingleCommand(TestConvertCLIIntegration):
             config_file.unlink()
             test_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_single_kfx_file_processing_fails(self, mock_progress, mock_scanner, mock_converter_class):
@@ -561,7 +561,7 @@ class TestConvertSingleCommand(TestConvertCLIIntegration):
             config_file.unlink()
             test_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_single_kfx_successful_conversion(self, mock_progress, mock_scanner, mock_converter_class):
@@ -576,7 +576,7 @@ class TestConvertSingleCommand(TestConvertCLIIntegration):
             
             # Mock successful conversion result
             successful_result = Mock(success=True, output_path="/output/converted.azw3")
-            mock_converter.convert_books_to_kfx.return_value = [successful_result]
+            mock_converter.convert_batch.return_value = [successful_result]
             mock_converter_class.return_value = mock_converter
             
             # Mock scanner that creates a book
@@ -616,7 +616,7 @@ class TestConvertSingleCommand(TestConvertCLIIntegration):
             config_file.unlink()
             test_file.unlink()
 
-    @patch('calibre_books.cli.convert.KFXConverter')
+    @patch('calibre_books.cli.convert.FormatConverter')
     @patch('calibre_books.cli.convert.FileScanner')
     @patch('calibre_books.cli.convert.ProgressManager')
     def test_convert_single_kfx_conversion_fails(self, mock_progress, mock_scanner, mock_converter_class):
@@ -631,7 +631,7 @@ class TestConvertSingleCommand(TestConvertCLIIntegration):
             
             # Mock failed conversion result
             failed_result = Mock(success=False, error="Conversion failed")
-            mock_converter.convert_books_to_kfx.return_value = [failed_result]
+            mock_converter.convert_batch.return_value = [failed_result]
             mock_converter_class.return_value = mock_converter
             
             # Mock scanner
@@ -820,7 +820,7 @@ class TestConvertSingleCommand(TestConvertCLIIntegration):
         
         try:
             # Mock an exception during format conversion
-            with patch('calibre_books.cli.convert.KFXConverter', side_effect=Exception("Unexpected error")):
+            with patch('calibre_books.cli.convert.FormatConverter', side_effect=Exception("Unexpected error")):
                 runner = CliRunner()
                 
                 config_manager = ConfigManager(config_file)
