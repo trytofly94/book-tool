@@ -277,16 +277,17 @@ class ASINLookupService(LoggerMixin):
         # Try different lookup methods in priority order for ISBN
         # Map source names to method names for filtering
         source_method_mapping = {
-            'amazon': 'isbn-direct',
-            'amazon-search': 'isbn-direct',
-            'goodreads': 'google-books',  # Goodreads data comes via Google Books API
-            'google-books': 'google-books',
-            'openlibrary': 'openlibrary'
+            'amazon': ['isbn-direct', 'google-books-metadata'],  # Try both Amazon methods
+            'amazon-search': ['isbn-direct', 'google-books-metadata'],
+            'goodreads': ['google-books-direct', 'google-books-metadata'],  # Goodreads data comes via Google Books API
+            'google-books': ['google-books-direct', 'google-books-metadata'],
+            'openlibrary': ['openlibrary']
         }
         
         lookup_methods = [
             ('isbn-direct', lambda: self._lookup_by_isbn_direct(isbn)),
-            ('google-books', lambda: self._lookup_via_google_books(isbn, None, None, verbose)),
+            ('google-books-direct', lambda: self._lookup_via_google_books(isbn, None, None, verbose)),
+            ('google-books-metadata', lambda: self._lookup_isbn_via_metadata_search(isbn, verbose)),
             ('openlibrary', lambda: self._lookup_via_openlibrary(isbn, verbose=verbose)),
         ]
         
@@ -294,8 +295,11 @@ class ASINLookupService(LoggerMixin):
             # Skip if source not in requested sources using proper mapping
             method_should_run = False
             for requested_source in search_sources:
-                mapped_method = source_method_mapping.get(requested_source, requested_source)
-                if mapped_method == method_name:
+                mapped_methods = source_method_mapping.get(requested_source, [requested_source])
+                # Handle both list and single string mapping
+                if isinstance(mapped_methods, str):
+                    mapped_methods = [mapped_methods]
+                if method_name in mapped_methods:
                     method_should_run = True
                     break
             
@@ -491,7 +495,7 @@ class ASINLookupService(LoggerMixin):
         return Availability(available=available, metadata=metadata)
     
     def _lookup_by_isbn_direct(self, isbn: str) -> Optional[str]:
-        """Direct ISBN to ASIN lookup via Amazon redirect."""
+        """Direct ISBN to ASIN lookup via Amazon redirect with enhanced Kindle edition detection."""
         if not isbn:
             return None
         
@@ -506,15 +510,129 @@ class ASINLookupService(LoggerMixin):
             response = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
             
             if response.status_code == 200:
-                # Look for ASIN in the final URL
+                # Look for ASIN in the final URL (direct redirect)
                 final_url = response.url
                 asin_match = re.search(r'/dp/([B][A-Z0-9]{9})', final_url)
                 
                 if asin_match:
+                    self.logger.debug(f"ISBN direct lookup: Found ASIN via redirect: {asin_match.group(1)}")
                     return asin_match.group(1)
+                
+                # If no redirect to ASIN, parse the page content for Kindle editions
+                self.logger.debug("ISBN direct lookup: No ASIN redirect, parsing page content")
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Strategy 1: Look for Kindle edition links in format switcher or related products
+                format_links = soup.find_all('a', href=True)
+                
+                for link in format_links:
+                    href = link.get('href', '')
+                    
+                    # Look for links that mention kindle, ebook, or digital
+                    link_text = link.get_text(strip=True).lower()
+                    if ('kindle' in href.lower() or 'kindle' in link_text or 
+                        'ebook' in href.lower() or 'ebook' in link_text or
+                        'digital' in link_text):
+                        
+                        # Extract ASIN from these links
+                        asin_match = re.search(r'/dp/([B][A-Z0-9]{9})', href)
+                        if asin_match:
+                            asin = asin_match.group(1)
+                            self.logger.debug(f"ISBN direct lookup: Found Kindle ASIN: {asin}")
+                            return asin
+                
+                # Strategy 2: Look for ASINs in JavaScript or hidden data
+                scripts = soup.find_all('script', string=True)
+                
+                for script in scripts[:10]:  # Check first 10 scripts
+                    script_content = script.string
+                    if script_content and 'kindle' in script_content.lower():
+                        # Look for ASIN patterns in Kindle-related JavaScript
+                        asin_matches = re.findall(r'([B][A-Z0-9]{9})', script_content)
+                        for asin_candidate in asin_matches:
+                            if self.validate_asin(asin_candidate):
+                                self.logger.debug(f"ISBN direct lookup: Found ASIN in Kindle script: {asin_candidate}")
+                                return asin_candidate
+                
+                # Strategy 3: Look in the page source for common Kindle ASIN patterns
+                page_content = response.text
+                
+                # Look for data attributes that might contain Kindle ASINs
+                asin_patterns = [
+                    r'data-asin["\']?\s*[=:]\s*["\']([B][A-Z0-9]{9})["\']',  # data-asin attributes
+                    r'"asin"\s*:\s*"([B][A-Z0-9]{9})"',  # JSON asin fields
+                    r'asin["\']?\s*[=:]\s*["\']([B][A-Z0-9]{9})["\']',  # asin variables
+                ]
+                
+                for pattern in asin_patterns:
+                    matches = re.findall(pattern, page_content, re.IGNORECASE)
+                    for match in matches:
+                        if self.validate_asin(match):
+                            self.logger.debug(f"ISBN direct lookup: Found ASIN via pattern match: {match}")
+                            return match
+                
+                self.logger.debug("ISBN direct lookup: No Kindle ASINs found on page")
                 
         except Exception as e:
             self.logger.debug(f"ISBN direct lookup failed: {e}")
+        
+        return None
+    
+    def _lookup_isbn_via_metadata_search(self, isbn: str, verbose: bool = False) -> Optional[str]:
+        """ISBN lookup using Google Books metadata to get title/author, then Amazon search for ASIN."""
+        if not isbn:
+            return None
+        
+        try:
+            # Step 1: Get book metadata from Google Books
+            if verbose:
+                self.logger.info(f"ISBN metadata search: Getting metadata for {isbn}")
+                
+            result = self._lookup_via_google_books(isbn, None, None, verbose, return_metadata=True)
+            
+            if not result or len(result) != 2:
+                self.logger.debug(f"ISBN metadata search: No metadata returned for {isbn}")
+                return None
+            
+            asin, metadata = result
+            
+            # If Google Books already found an ASIN, return it
+            if asin:
+                self.logger.debug(f"ISBN metadata search: ASIN found directly from Google Books: {asin}")
+                return asin
+            
+            # Extract title and author from metadata
+            if not metadata:
+                self.logger.debug(f"ISBN metadata search: No metadata available for {isbn}")
+                return None
+            
+            title = metadata.get('title')
+            authors = metadata.get('authors', [])
+            author = authors[0] if authors else None
+            
+            if not title:
+                self.logger.debug(f"ISBN metadata search: No title found in metadata for {isbn}")
+                return None
+            
+            if verbose:
+                self.logger.info(f"ISBN metadata search: Found metadata - Title: '{title}', Author: '{author}'")
+            
+            # Step 2: Use title/author to search Amazon for the Kindle ASIN
+            self.logger.debug(f"ISBN metadata search: Searching Amazon for Kindle edition of '{title}' by {author}")
+            
+            asin = self._lookup_via_amazon_search(title, author, verbose)
+            
+            if asin:
+                if verbose:
+                    self.logger.info(f"ISBN metadata search: Found Kindle ASIN via Amazon search: {asin}")
+                return asin
+            else:
+                self.logger.debug(f"ISBN metadata search: No ASIN found via Amazon search for '{title}' by {author}")
+                
+        except Exception as e:
+            self.logger.debug(f"ISBN metadata search failed for {isbn}: {e}")
+            if verbose:
+                self.logger.error(f"ISBN metadata search detailed error: {e}", exc_info=True)
         
         return None
     
@@ -711,8 +829,19 @@ class ASINLookupService(LoggerMixin):
         self.logger.debug(f"Amazon search ({section}): No ASIN found with any extraction method")
         return None
     
-    def _lookup_via_google_books(self, isbn: Optional[str], title: Optional[str], author: Optional[str], verbose: bool = False) -> Optional[str]:
-        """Google Books API lookup with improved query formatting and multiple strategies."""
+    def _lookup_via_google_books(self, isbn: Optional[str], title: Optional[str], author: Optional[str], verbose: bool = False, return_metadata: bool = False) -> Optional[str]:
+        """Google Books API lookup with improved query formatting and multiple strategies.
+        
+        Args:
+            isbn: ISBN to search for
+            title: Title to search for
+            author: Author to search for
+            verbose: Enable verbose logging
+            return_metadata: If True, return (asin, metadata) tuple instead of just asin
+            
+        Returns:
+            ASIN string or None (or tuple if return_metadata=True)
+        """
         
         # Multiple query strategies to improve success rate
         strategies = []
@@ -739,7 +868,7 @@ class ASINLookupService(LoggerMixin):
         
         if not strategies:
             self.logger.debug("Google Books: No query parameters provided")
-            return None
+            return None if not return_metadata else (None, None)
         
         for strategy_name, query in strategies:
             try:
@@ -786,7 +915,18 @@ class ASINLookupService(LoggerMixin):
                             # Try different ASIN extraction methods
                             asin_found = self._extract_asin_from_google_books_result(data, verbose, strategy_name)
                             if asin_found:
+                                if return_metadata:
+                                    return (asin_found, data)
                                 return asin_found
+                            
+                            # If we're doing ISBN lookup and no ASIN found, but we got book metadata,
+                            # return the metadata so we can do a title/author lookup
+                            if return_metadata and isbn and items:
+                                # Return the first valid book result for secondary lookup
+                                for item in items:
+                                    volume_info = item.get('volumeInfo', {})
+                                    if volume_info.get('title') and volume_info.get('authors'):
+                                        return (None, volume_info)
                             
                             break  # Success, no need to retry this strategy
                         
@@ -825,7 +965,7 @@ class ASINLookupService(LoggerMixin):
                 continue
         
         self.logger.debug("Google Books: No ASIN found with any strategy")
-        return None
+        return None if not return_metadata else (None, None)
     
     def _extract_asin_from_google_books_result(self, data: dict, verbose: bool, strategy_name: str) -> Optional[str]:
         """Extract ASIN from Google Books API response using multiple methods."""
