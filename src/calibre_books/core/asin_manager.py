@@ -87,7 +87,17 @@ class ASINManager(LoggerMixin):
 
             except Exception as e:
                 self.logger.error(f"Failed to process {book.file_path}: {e}")
-                results.append(ASINLookupResult(book=book, success=False, error=str(e)))
+                results.append(
+                    ASINLookupResult(
+                        query_title=book.title,
+                        query_author=book.author,
+                        asin=None,
+                        metadata=None,
+                        source=None,
+                        success=False,
+                        error=str(e),
+                    )
+                )
 
         successful = sum(1 for r in results if r.success)
         self.logger.info(
@@ -115,7 +125,12 @@ class ASINManager(LoggerMixin):
         if book.has_asin:
             self.logger.debug(f"Book already has ASIN: {book.metadata.asin}")
             return ASINLookupResult(
-                book=book, success=True, asin=book.metadata.asin, source="existing"
+                query_title=book.title,
+                query_author=book.author,
+                asin=book.metadata.asin,
+                metadata=None,
+                source="existing",
+                success=True,
             )
 
         asin = None
@@ -136,7 +151,15 @@ class ASINManager(LoggerMixin):
                 )
 
         if not asin:
-            return ASINLookupResult(book=book, success=False, error="No ASIN found")
+            return ASINLookupResult(
+                query_title=book.title,
+                query_author=book.author,
+                asin=None,
+                metadata=None,
+                source=None,
+                success=False,
+                error="No ASIN found",
+            )
 
         # Update file metadata with ASIN
         try:
@@ -145,11 +168,24 @@ class ASINManager(LoggerMixin):
             # Update book object
             book.metadata.asin = asin
 
-            return ASINLookupResult(book=book, success=True, asin=asin, source=source)
+            return ASINLookupResult(
+                query_title=book.title,
+                query_author=book.author,
+                asin=asin,
+                metadata=None,
+                source=source,
+                success=True,
+            )
 
         except Exception as e:
             return ASINLookupResult(
-                book=book, success=False, asin=asin, error=f"Failed to update file: {e}"
+                query_title=book.title,
+                query_author=book.author,
+                asin=asin,
+                metadata=None,
+                source=None,
+                success=False,
+                error=f"Failed to update file: {e}",
             )
 
     def _update_file_asin(self, file_path: Path, asin: str) -> None:
