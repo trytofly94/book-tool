@@ -412,7 +412,7 @@ class FormatConverter(LoggerMixin):
             )
             total_kfx_time = sum(r.conversion_time or 0 for r in results)
 
-            self.logger.info(f"KFX batch conversion completed:")
+            self.logger.info("KFX batch conversion completed:")
             self.logger.info(f"  ✓ Successful KFX conversions: {len(kfx_successful)}")
             self.logger.info(f"  ✗ Failed KFX conversions: {len(kfx_failed)}")
             self.logger.info(
@@ -424,7 +424,7 @@ class FormatConverter(LoggerMixin):
             self.logger.info(f"  ⏱️ Total KFX time: {total_kfx_time:.1f} seconds")
 
             if kfx_failed:
-                self.logger.warning(f"Failed KFX conversions:")
+                self.logger.warning("Failed KFX conversions:")
                 for fail in kfx_failed[:3]:  # Show first 3 failures
                     self.logger.warning(f"  ✗ {fail.input_file.name}: {fail.error}")
                 if len(kfx_failed) > 3:
@@ -820,7 +820,7 @@ class FormatConverter(LoggerMixin):
         total_size_after = sum(r.file_size_after or 0 for r in successful) / 1024 / 1024
         total_time = sum(r.conversion_time or 0 for r in results)
 
-        self.logger.info(f"Batch conversion completed:")
+        self.logger.info("Batch conversion completed:")
         self.logger.info(f"  ✓ Successful: {len(successful)}")
         self.logger.info(f"  ✗ Failed: {len(failed)}")
         self.logger.info(f"  📊 Total input size: {total_size_before:.1f} MB")
@@ -828,7 +828,7 @@ class FormatConverter(LoggerMixin):
         self.logger.info(f"  ⏱️ Total time: {total_time:.1f} seconds")
 
         if failed:
-            self.logger.warning(f"Failed conversions:")
+            self.logger.warning("Failed conversions:")
             for fail in failed[:5]:  # Show first 5 failures
                 self.logger.warning(f"  ✗ {fail.input_file.name}: {fail.error}")
             if len(failed) > 5:

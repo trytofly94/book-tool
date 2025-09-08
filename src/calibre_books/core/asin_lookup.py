@@ -972,13 +972,13 @@ class ASINLookupService(LoggerMixin):
 
                         elif response.status_code == 503:
                             self.logger.debug(
-                                f"Amazon search: Service unavailable (503), retrying with different user agent"
+                                "Amazon search: Service unavailable (503), retrying with different user agent"
                             )
                             time.sleep(2**attempt)  # Exponential backoff
                             continue
                         elif response.status_code == 429:
                             self.logger.debug(
-                                f"Amazon search: Rate limited (429), backing off"
+                                "Amazon search: Rate limited (429), backing off"
                             )
                             time.sleep(
                                 5 * (attempt + 1)
