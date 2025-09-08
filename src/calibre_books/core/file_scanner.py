@@ -146,8 +146,6 @@ class FileScanner(LoggerMixin):
             book = Book(
                 metadata=metadata,
                 file_path=file_path,
-                format=book_format,
-                file_size=file_path.stat().st_size,
             )
             
             return book
