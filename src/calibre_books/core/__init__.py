@@ -13,7 +13,7 @@ from .converter import FormatConverter
 
 __all__ = [
     "Book",
-    "BookMetadata", 
+    "BookMetadata",
     "BookStatus",
     "CalibreIntegration",
     "BookDownloader",

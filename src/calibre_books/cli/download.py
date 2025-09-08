@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def download(ctx: click.Context) -> None:
     """Download books from various sources."""
-    pass
 
 
 @download.command()
@@ -81,7 +80,7 @@ def books(
 ) -> None:
     """
     Download books based on search criteria.
-    
+
     Examples:
         book-tool download books --series "Stormlight Archive"
         book-tool download books --author "Brandon Sanderson" --format epub
@@ -89,16 +88,20 @@ def books(
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
-    
+
     if not any([series, author, title]):
-        console.print("[red]Error: Must specify at least one of --series, --author, or --title[/red]")
+        console.print(
+            "[red]Error: Must specify at least one of --series, --author, or --title[/red]"
+        )
         ctx.exit(1)
-    
+
     try:
         downloader = BookDownloader(config.get_download_config())
-        
+
         if dry_run:
-            console.print("[yellow]DRY RUN: Would download books with criteria:[/yellow]")
+            console.print(
+                "[yellow]DRY RUN: Would download books with criteria:[/yellow]"
+            )
             if series:
                 console.print(f"  Series: {series}")
             if author:
@@ -109,7 +112,7 @@ def books(
             console.print(f"  Max results: {max_results}")
             console.print(f"  Quality: {quality}")
             return
-        
+
         # Create progress manager for long-running operation
         with ProgressManager("Downloading books") as progress:
             results = downloader.download_books(
@@ -122,23 +125,29 @@ def books(
                 quality=quality,
                 progress_callback=progress.update,
             )
-        
+
         if results:
             successful = [r for r in results if r.success]
             failed = [r for r in results if not r.success]
-            
+
             if successful:
-                console.print(f"[green]Successfully downloaded {len(successful)} books[/green]")
+                console.print(
+                    f"[green]Successfully downloaded {len(successful)} books[/green]"
+                )
                 for result in successful:
                     console.print(f"  • {result.book.title} by {result.book.author}")
-            
+
             if failed:
-                console.print(f"[yellow]Failed to download {len(failed)} books[/yellow]")
+                console.print(
+                    f"[yellow]Failed to download {len(failed)} books[/yellow]"
+                )
                 for result in failed:
-                    console.print(f"  • {result.book.title} by {result.book.author}: {result.error}")
+                    console.print(
+                        f"  • {result.book.title} by {result.book.author}: {result.error}"
+                    )
         else:
             console.print("[yellow]No books found matching criteria[/yellow]")
-            
+
     except Exception as e:
         logger.error(f"Download failed: {e}")
         console.print(f"[red]Download failed: {e}[/red]")
@@ -183,30 +192,32 @@ def batch(
 ) -> None:
     """
     Download multiple books from a list file.
-    
+
     The input file should contain one book per line in the format:
     Title|Author or just Title
-    
+
     Examples:
         book-tool download batch -i books_list.txt --parallel 3
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
-    
+
     try:
         downloader = BookDownloader(config.get_download_config())
-        
+
         # Read book list from file
         books_to_download = downloader.parse_book_list(input_file)
-        
+
         if dry_run:
-            console.print(f"[yellow]DRY RUN: Would download {len(books_to_download)} books:[/yellow]")
+            console.print(
+                f"[yellow]DRY RUN: Would download {len(books_to_download)} books:[/yellow]"
+            )
             for book in books_to_download[:5]:  # Show first 5
                 console.print(f"  • {book.title} by {book.author}")
             if len(books_to_download) > 5:
                 console.print(f"  ... and {len(books_to_download) - 5} more")
             return
-        
+
         # Start batch download with progress tracking
         with ProgressManager(f"Downloading {len(books_to_download)} books") as progress:
             results = downloader.download_batch(
@@ -216,15 +227,15 @@ def batch(
                 parallel=parallel,
                 progress_callback=progress.update,
             )
-        
+
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
-        
+
         console.print(f"[green]Batch download completed[/green]")
         console.print(f"  Successful: {successful}")
         if failed > 0:
             console.print(f"  Failed: {failed}")
-            
+
     except Exception as e:
         logger.error(f"Batch download failed: {e}")
         console.print(f"[red]Batch download failed: {e}[/red]")
@@ -258,17 +269,17 @@ def url(
 ) -> None:
     """
     Download book from direct URL.
-    
+
     Examples:
         book-tool download url -u "https://example.com/book.mobi"
         book-tool download url -u "https://example.com/book.epub" -n "custom_name.epub"
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
-    
+
     try:
         downloader = BookDownloader(config.get_download_config())
-        
+
         if dry_run:
             console.print(f"[yellow]DRY RUN: Would download from URL: {url}[/yellow]")
             if output_dir:
@@ -276,7 +287,7 @@ def url(
             if filename:
                 console.print(f"  Filename: {filename}")
             return
-        
+
         with ProgressManager("Downloading from URL") as progress:
             result = downloader.download_from_url(
                 url,
@@ -284,13 +295,13 @@ def url(
                 filename=filename,
                 progress_callback=progress.update,
             )
-        
+
         if result.success:
             console.print(f"[green]Successfully downloaded: {result.filepath}[/green]")
         else:
             console.print(f"[red]Download failed: {result.error}[/red]")
             ctx.exit(1)
-            
+
     except Exception as e:
         logger.error(f"URL download failed: {e}")
         console.print(f"[red]URL download failed: {e}[/red]")

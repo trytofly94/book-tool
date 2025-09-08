@@ -25,7 +25,6 @@ logger = logging.getLogger(__name__)
 @click.pass_context
 def asin(ctx: click.Context) -> None:
     """Manage ASINs and book metadata."""
-    pass
 
 
 @asin.command()
@@ -74,7 +73,7 @@ def lookup(
 ) -> None:
     """
     Look up ASIN for a specific book.
-    
+
     Examples:
         book-tool asin lookup --book "The Way of Kings" --author "Brandon Sanderson"
         book-tool asin lookup --isbn "9780765326355"
@@ -82,14 +81,14 @@ def lookup(
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
-    
+
     if not any([book, isbn]):
         console.print("[red]Error: Must specify either --book or --isbn[/red]")
         ctx.exit(1)
-    
+
     try:
         lookup_service = ASINLookupService(config)
-        
+
         if dry_run:
             console.print("[yellow]DRY RUN: Would lookup ASIN for:[/yellow]")
             if book:
@@ -101,14 +100,16 @@ def lookup(
             console.print(f"  Sources: {sources if sources else 'default'}")
             console.print(f"  Use cache: {cache}")
             return
-        
+
         # Set verbose mode for debugging
         if verbose:
             # Enable debug logging for ASIN lookup
-            asin_logger = logging.getLogger('calibre_books.core.asin_lookup')
+            asin_logger = logging.getLogger("calibre_books.core.asin_lookup")
             asin_logger.setLevel(logging.DEBUG)
-            console.print("[yellow]Verbose mode enabled - showing detailed lookup information[/yellow]")
-        
+            console.print(
+                "[yellow]Verbose mode enabled - showing detailed lookup information[/yellow]"
+            )
+
         with ProgressManager("Looking up ASIN") as progress:
             if isbn:
                 result = lookup_service.lookup_by_isbn(
@@ -127,7 +128,7 @@ def lookup(
                     progress_callback=progress.update,
                     verbose=verbose,
                 )
-        
+
         if result.asin:
             console.print(f"[green]ASIN found: {result.asin}[/green]")
             if result.source:
@@ -136,37 +137,43 @@ def lookup(
                 console.print(f"[dim]Lookup time: {result.lookup_time:.2f}s[/dim]")
             if result.from_cache:
                 console.print("[dim](from cache)[/dim]")
-            
+
             # Display additional metadata if available (but not error metadata)
-            if result.metadata and isinstance(result.metadata, dict) and not all(isinstance(v, str) for v in result.metadata.values()):
+            if (
+                result.metadata
+                and isinstance(result.metadata, dict)
+                and not all(isinstance(v, str) for v in result.metadata.values())
+            ):
                 table = Table(title="Book Metadata")
                 table.add_column("Field", style="cyan")
                 table.add_column("Value", style="white")
-                
+
                 for field, value in result.metadata.items():
                     table.add_row(field, str(value))
-                
+
                 console.print(table)
         else:
             console.print("[yellow]No ASIN found[/yellow]")
             if result.error:
                 console.print(f"[red]Error: {result.error}[/red]")
-            
+
             # In verbose mode, show detailed error information
             if verbose and result.metadata and isinstance(result.metadata, dict):
                 console.print("\n[yellow]Detailed source information:[/yellow]")
                 error_table = Table(title="Source Lookup Results")
                 error_table.add_column("Source", style="cyan")
                 error_table.add_column("Result", style="white")
-                
+
                 for source, error in result.metadata.items():
                     error_table.add_row(source, str(error))
-                
+
                 console.print(error_table)
-            
+
             if result.lookup_time:
-                console.print(f"[dim]Total lookup time: {result.lookup_time:.2f}s[/dim]")
-            
+                console.print(
+                    f"[dim]Total lookup time: {result.lookup_time:.2f}s[/dim]"
+                )
+
     except Exception as e:
         logger.error(f"ASIN lookup failed: {e}")
         console.print(f"[red]ASIN lookup failed: {e}[/red]")
@@ -216,7 +223,7 @@ def batch_update(
 ) -> None:
     """
     Update ASINs for multiple books in Calibre library.
-    
+
     Examples:
         book-tool asin batch-update --library ~/Calibre-Library --missing-only
         book-tool asin batch-update --filter "Sanderson" --parallel 4
@@ -224,47 +231,51 @@ def batch_update(
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
-    
+
     try:
         calibre = CalibreIntegration(config)
         lookup_service = ASINLookupService(config)
-        
+
         # Get list of books to process
         books_to_process = calibre.get_books_for_asin_update(
             library_path=library,
             filter_pattern=filter,
             missing_only=missing_only,
         )
-        
+
         if not books_to_process:
             console.print("[yellow]No books found matching criteria[/yellow]")
             return
-        
+
         if dry_run:
-            console.print(f"[yellow]DRY RUN: Would update ASINs for {len(books_to_process)} books:[/yellow]")
+            console.print(
+                f"[yellow]DRY RUN: Would update ASINs for {len(books_to_process)} books:[/yellow]"
+            )
             for book in books_to_process[:5]:  # Show first 5
                 console.print(f"  • {book.title} by {book.author}")
             if len(books_to_process) > 5:
                 console.print(f"  ... and {len(books_to_process) - 5} more")
             return
-        
+
         # Start batch ASIN update
-        with ProgressManager(f"Updating ASINs for {len(books_to_process)} books") as progress:
+        with ProgressManager(
+            f"Updating ASINs for {len(books_to_process)} books"
+        ) as progress:
             results = lookup_service.batch_update(
                 books_to_process,
                 sources=sources or None,
                 parallel=parallel,
                 progress_callback=progress.update,
             )
-        
+
         # Update Calibre library with new ASINs
         updated_count = calibre.update_asins(results)
-        
+
         console.print(f"[green]Batch ASIN update completed[/green]")
         console.print(f"  Books processed: {len(books_to_process)}")
         console.print(f"  ASINs found: {sum(1 for r in results if r.asin)}")
         console.print(f"  Library updated: {updated_count}")
-        
+
     except Exception as e:
         logger.error(f"Batch ASIN update failed: {e}")
         console.print(f"[red]Batch ASIN update failed: {e}[/red]")
@@ -298,7 +309,7 @@ def cache(
 ) -> None:
     """
     Manage ASIN lookup cache.
-    
+
     Examples:
         book-tool asin cache --show-stats
         book-tool asin cache --cleanup
@@ -306,44 +317,48 @@ def cache(
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
-    
+
     try:
         lookup_service = ASINLookupService(config)
         cache_manager = lookup_service.cache_manager
-        
+
         if show_stats:
             stats = cache_manager.get_stats()
-            
+
             table = Table(title="ASIN Cache Statistics")
             table.add_column("Metric", style="cyan")
             table.add_column("Value", style="white")
-            
+
             table.add_row("Total entries", str(stats.total_entries))
             table.add_row("Hit rate", f"{stats.hit_rate:.1%}")
             table.add_row("Cache size", stats.size_human)
             table.add_row("Last updated", stats.last_updated.isoformat())
-            
+
             console.print(table)
-        
+
         if clear:
             if dry_run:
                 console.print("[yellow]DRY RUN: Would clear ASIN cache[/yellow]")
                 return
-            
+
             cache_manager.clear()
             console.print("[green]ASIN cache cleared[/green]")
-        
+
         if cleanup:
             if dry_run:
-                console.print("[yellow]DRY RUN: Would cleanup expired cache entries[/yellow]")
+                console.print(
+                    "[yellow]DRY RUN: Would cleanup expired cache entries[/yellow]"
+                )
                 return
-            
+
             removed_count = cache_manager.cleanup_expired()
-            console.print(f"[green]Removed {removed_count} expired cache entries[/green]")
-        
+            console.print(
+                f"[green]Removed {removed_count} expired cache entries[/green]"
+            )
+
         if not any([show_stats, clear, cleanup]):
             console.print("Use --show-stats, --clear, or --cleanup")
-            
+
     except Exception as e:
         logger.error(f"Cache operation failed: {e}")
         console.print(f"[red]Cache operation failed: {e}[/red]")
@@ -371,47 +386,51 @@ def verify(
 ) -> None:
     """
     Verify ASIN format and optionally check availability.
-    
+
     Examples:
         book-tool asin verify --asin B00ZVA3XL6
         book-tool asin verify --asin B00ZVA3XL6 --check-availability
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
-    
+
     try:
         lookup_service = ASINLookupService(config)
-        
+
         if dry_run:
             console.print(f"[yellow]DRY RUN: Would verify ASIN: {asin}[/yellow]")
             if check_availability:
                 console.print("  Would check availability on Amazon")
             return
-        
+
         # Validate ASIN format
         is_valid = lookup_service.validate_asin(asin)
-        
+
         if is_valid:
             console.print(f"[green]ASIN format is valid: {asin}[/green]")
-            
+
             if check_availability:
                 with ProgressManager("Checking availability") as progress:
                     availability = lookup_service.check_availability(
                         asin,
                         progress_callback=progress.update,
                     )
-                
+
                 if availability.available:
                     console.print("[green]ASIN is available on Amazon[/green]")
                     if availability.metadata:
-                        console.print(f"  Title: {availability.metadata.get('title', 'N/A')}")
-                        console.print(f"  Price: {availability.metadata.get('price', 'N/A')}")
+                        console.print(
+                            f"  Title: {availability.metadata.get('title', 'N/A')}"
+                        )
+                        console.print(
+                            f"  Price: {availability.metadata.get('price', 'N/A')}"
+                        )
                 else:
                     console.print("[red]ASIN is not available or restricted[/red]")
         else:
             console.print(f"[red]Invalid ASIN format: {asin}[/red]")
             ctx.exit(1)
-            
+
     except Exception as e:
         logger.error(f"ASIN verification failed: {e}")
         console.print(f"[red]ASIN verification failed: {e}[/red]")

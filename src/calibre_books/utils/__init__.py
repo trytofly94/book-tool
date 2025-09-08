@@ -12,7 +12,7 @@ from .validation import validate_asin, validate_file_path, validate_url
 __all__ = [
     "setup_logging",
     "get_logger",
-    "ProgressManager", 
+    "ProgressManager",
     "validate_asin",
     "validate_file_path",
     "validate_url",

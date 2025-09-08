@@ -17,7 +17,7 @@ from .config.manager import ConfigManager
 
 __all__ = [
     "Book",
-    "CalibreIntegration", 
+    "CalibreIntegration",
     "ConfigManager",
     "__version__",
 ]
