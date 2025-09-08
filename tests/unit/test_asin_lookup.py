@@ -44,7 +44,9 @@ class TestASINLookupService:
         assert service.config_manager == self.mock_config_manager
         assert service.sources == ["amazon", "goodreads", "openlibrary"]
         assert service.rate_limit == 0.1
-        assert isinstance(service.cache_manager, CacheManager)
+        # Accept both SQLiteCacheManager and JSONCacheManager (CacheManager alias)
+        assert hasattr(service.cache_manager, "cache_asin")
+        assert hasattr(service.cache_manager, "get_cached_asin")
         assert len(service.user_agents) >= 3
 
     def test_validate_asin_format(self):

@@ -597,6 +597,9 @@ class JSONCacheManager:
         """No-op for JSON cache (no expiration support)."""
         return 0
 
+    def close(self):
+        """No-op for JSON cache (no connections to close)."""
+
 
 def create_cache_manager(cache_path: Path, backend: str = "sqlite", **kwargs) -> Any:
     """
