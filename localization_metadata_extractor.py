@@ -87,6 +87,25 @@ class LocalizationMetadataExtractor:
                 "english": ["Skyward", "Starsight", "Cytonic", "Defiant"],
                 "german": ["Ruf der Sterne", "Sternensicht"],
             },
+            # New language patterns for Issue #23
+            "haruki_murakami": {
+                "english": ["Norwegian Wood", "Kafka on the Shore", "1Q84"],
+                "japanese": ["ノルウェイの森", "海辺のカフカ", "1Q84"],
+                "portuguese": ["Tóquio Blues", "Kafka à Beira-Mar", "1Q84"],
+                "dutch": ["Noors Woud", "Kafka op het Strand", "1Q84"],
+            },
+            "paulo_coelho": {
+                "english": ["The Alchemist", "The Pilgrimage", "Eleven Minutes"],
+                "portuguese": ["O Alquimista", "O Diário de um Mago", "Onze Minutos"],
+                "japanese": ["アルケミスト", "星の巡礼", "11分間"],
+                "dutch": ["De Alchemist", "Het Dagboek van een Magiër", "Elf Minuten"],
+            },
+            "anne_frank": {
+                "english": ["The Diary of a Young Girl", "Anne Frank's Diary"],
+                "dutch": ["Het Achterhuis", "Dagboek van Anne Frank"],
+                "portuguese": ["O Diário de Anne Frank", "Diário de uma Jovem"],
+                "japanese": ["アンネの日記", "アンネ・フランクの日記"],
+            },
         }
 
     def extract_from_epub(self, epub_path: str) -> Dict[str, str]:
@@ -286,6 +305,40 @@ class LocalizationMetadataExtractor:
         french_indicators = ["le chemin", "les enfants", "l'empire"]
         if any(indicator in title_lower for indicator in french_indicators):
             return "fr"
+
+        # Japanese indicators (Hiragana/Katakana/Kanji patterns)
+        japanese_indicators = [
+            "の森",  # Norwegian Wood
+            "海辺",  # Kafka on the Shore
+            "アンネ",  # Anne Frank
+            "日記",  # Diary
+            "アルケミスト",  # The Alchemist
+        ]
+        if any(indicator in title for indicator in japanese_indicators):
+            return "ja"
+
+        # Portuguese indicators
+        portuguese_indicators = [
+            "o alquimista",
+            "o diário",
+            "tóquio blues",
+            "à beira-mar",
+            "de um mago",
+        ]
+        if any(indicator in title_lower for indicator in portuguese_indicators):
+            return "pt"
+
+        # Dutch indicators
+        dutch_indicators = [
+            "het achterhuis",
+            "dagboek van",
+            "noors woud",
+            "op het strand",
+            "de alchemist",
+            "het dagboek",
+        ]
+        if any(indicator in title_lower for indicator in dutch_indicators):
+            return "nl"
 
         # Default to English
         return "en"
