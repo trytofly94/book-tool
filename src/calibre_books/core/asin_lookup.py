@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 
 from ..utils.logging import LoggerMixin
 from .book import Book, ASINLookupResult
+from .cache import SQLiteCacheManager
 
 if TYPE_CHECKING:
     from ..config.manager import ConfigManager
@@ -66,8 +67,12 @@ class ASINLookupService(LoggerMixin):
             f"Initialized ASIN lookup service with sources: {self.sources}"
         )
 
-        # Initialize cache manager
-        self.cache_manager = CacheManager(self.cache_path)
+        # Initialize SQLite-based cache manager with .db extension
+        if self.cache_path.suffix == ".json":
+            # Convert .json cache path to .db for SQLite
+            self.cache_path = self.cache_path.with_suffix(".db")
+
+        self.cache_manager = SQLiteCacheManager(self.cache_path)
 
         # User agents for web scraping - updated for 2025
         self.user_agents = [
