@@ -134,6 +134,9 @@ class FileScanner(LoggerMixin):
             
             # Create basic metadata from filename
             metadata = self._extract_metadata_from_filename(file_path.name)
+            # Set the format and file size in metadata
+            metadata.format = book_format
+            metadata.file_size = file_path.stat().st_size
             
             # Extract metadata from file if requested
             if extract_metadata:
@@ -146,8 +149,6 @@ class FileScanner(LoggerMixin):
             book = Book(
                 metadata=metadata,
                 file_path=file_path,
-                format=book_format,
-                file_size=file_path.stat().st_size,
             )
             
             return book

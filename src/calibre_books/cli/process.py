@@ -146,7 +146,7 @@ def scan(
             # Group by format
             by_format = {}
             for book in results:
-                fmt = book.format.upper()
+                fmt = book.format.value.upper() if book.format else 'UNKNOWN'
                 by_format[fmt] = by_format.get(fmt, 0) + 1
             
             for fmt, count in sorted(by_format.items()):

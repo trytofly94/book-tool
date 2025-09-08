@@ -145,6 +145,21 @@ class Book:
         return self.metadata.isbn
     
     @property
+    def format(self) -> Optional[BookFormat]:
+        """Convenience property for book format."""
+        return self.metadata.format
+    
+    @property
+    def file_size(self) -> Optional[int]:
+        """Convenience property for file size."""
+        return self.metadata.file_size
+    
+    @property
+    def has_asin(self) -> bool:
+        """Check if book has ASIN."""
+        return self.metadata.asin is not None and len(self.metadata.asin.strip()) > 0
+    
+    @property
     def file_exists(self) -> bool:
         """Check if the book file exists on disk."""
         return self.file_path is not None and self.file_path.exists()
