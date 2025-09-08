@@ -10,7 +10,7 @@ Transform the current book-tool project into a fully functional, pip-installable
 
 Looking at the README.md, the roadmap shows:
 - [x] Package structure with `setup.py`/`pyproject.toml`
-- [x] Unified CLI interface with `argparse` 
+- [x] Unified CLI interface with `argparse`
 - [x] External configuration files
 - [x] Comprehensive test suite (146 tests)
 - [x] Book download functionality (search, batch, URL downloads)
@@ -30,10 +30,10 @@ Looking at the README.md, the roadmap shows:
 ## Untersuchung & Analyse
 ### Current State Analysis:
 1. **Package Structure**: ✅ Proper `pyproject.toml` exists with correct structure
-2. **CLI Structure**: ✅ Main CLI exists in `src/calibre_books/cli/main.py` 
-3. **Commands Implemented**: 
+2. **CLI Structure**: ✅ Main CLI exists in `src/calibre_books/cli/main.py`
+3. **Commands Implemented**:
    - ✅ `process` - Processing existing eBook files
-   - ✅ `asin` - ASIN management 
+   - ✅ `asin` - ASIN management
    - ✅ `convert` - Format conversion (KFX)
    - ✅ `library` - Calibre library management
    - ✅ `config` - Configuration management
@@ -58,19 +58,19 @@ Looking at the README.md, the roadmap shows:
   - [x] Import and integrate download command in main.py
   - [x] Fix entry point configuration in pyproject.toml
   - [x] Verify all commands are properly registered
-  
-- [x] Phase 2: Package Installation Validation  
+
+- [x] Phase 2: Package Installation Validation
   - [x] Install package in development mode (`pip install -e .`)
   - [x] Test CLI commands with `book-tool --help`
   - [x] Verify all subcommands are accessible
   - [x] Test with real data using `/Volumes/Entertainment/Bücher/Calibre-Ingest`
-  
+
 - [x] Phase 3: Clean Installation Testing
   - [x] Create test virtual environment
   - [x] Install package from source (`pip install .`)
   - [x] Run comprehensive CLI tests
   - [x] Test core workflows (scan, download, convert)
-  
+
 - [x] Phase 4: Package Distribution Preparation
   - [x] Build package with `python -m build` (via pip install -e .)
   - [x] Verify wheel and source distributions (via pip installation process)
@@ -138,7 +138,7 @@ Looking at the README.md, the roadmap shows:
 
 **IMPLEMENTATION COMPLETE** ✅
 
-The book-tool package is now fully pip-installable with all CLI commands working correctly. 
+The book-tool package is now fully pip-installable with all CLI commands working correctly.
 The package can be installed with `pip install -e .` and the `book-tool` command provides
 access to all 6 core functions: process, asin, convert, library, config, and download.
 

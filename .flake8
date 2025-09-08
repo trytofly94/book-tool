@@ -1,0 +1,20 @@
+[flake8]
+max-line-length = 88
+extend-ignore =
+    # W503: line break before binary operator (conflicts with Black)
+    W503,
+    # E203: whitespace before ':' (conflicts with Black)
+    E203,
+    # E501: line too long (handled by Black when possible)
+    # E501 wird nur in kritischen Fällen ignoriert, wo Black nicht helfen kann
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.egg-info,
+    venv,
+    env
+per-file-ignores =
+    # Ignore specific errors for legacy files if needed
+    # calibre_control_demo.py:F401

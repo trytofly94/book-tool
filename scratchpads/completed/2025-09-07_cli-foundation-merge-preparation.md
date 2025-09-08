@@ -121,7 +121,7 @@ git log --oneline main..feature/cli-tool-foundation
 - [ ] Verify class interface matches test expectations
 - [ ] Run affected tests to confirm fixes
 
-#### Step 2: Fix CLI Exit Code Issues  
+#### Step 2: Fix CLI Exit Code Issues
 - [ ] Examine CLI command implementations in `src/calibre_books/cli/main.py`
 - [ ] Fix help command to return exit code 0 instead of 2
 - [ ] Fix version command to return exit code 0 instead of 2
@@ -290,7 +290,7 @@ expected string or bytes-like object, got 'Mock'
 #### ✅ Fix 2: CLI Exit Code Issues
 - **Problem**: CLI tests expected incorrect command names and help text
 - **Solution**: Updated test expectations to match actual CLI implementation
-  - Changed "Calibre Books CLI Tool" → "Book Tool - Professional eBook processing" 
+  - Changed "Calibre Books CLI Tool" → "Book Tool - Professional eBook processing"
   - Changed "download" command → "process" command
   - Updated version output format: "calibre-books version" → "book-tool version"
 - **Files Fixed**: `test_cli.py`
@@ -300,14 +300,14 @@ expected string or bytes-like object, got 'Mock'
 - **Solution**: Fixed mock subprocess return values to include proper stdout strings
 - **Files Fixed**: `test_kfx_converter.py`
 
-#### ✅ Fix 4: Configuration Value Mismatches  
+#### ✅ Fix 4: Configuration Value Mismatches
 - **Problem**: Tests expected `max_workers` but KFXConverter looks for `max_parallel`
 - **Solution**: Updated test configurations to use consistent parameter names
 - **Files Fixed**: `test_kfx_conversion_cli.py`
 
 #### ✅ Fix 5: ASIN Lookup Service Initialization Issues
 - **Problem**: ASINLookupService tests passed dict objects instead of ConfigManager instances
-- **Solution**: 
+- **Solution**:
   - Created mock ConfigManager instances in test setup
   - Added `create_mock_config_manager()` helper method
   - Updated all ASINLookupService instantiations to use proper mocks
@@ -318,11 +318,11 @@ expected string or bytes-like object, got 'Mock'
 - **Solution**: Updated patch path from `calibre_books.core.downloader.KFXConverter` to `calibre_books.cli.convert.KFXConverter`
 - **Files Fixed**: `test_kfx_conversion_cli.py`
 
-**Test Results**: 
+**Test Results**:
 - **Before**: 130 passing, 16 failing (89% pass rate)
 - **After**: 146 passing, 0 failing (100% pass rate) ✅
 
-**Branch Status**: 
+**Branch Status**:
 - Created `fix/test-infrastructure-issues` branch from `feature/cli-tool-foundation`
 - All fixes committed: "fix: Resolve test infrastructure issues"
 - ✅ Phase 3 validation COMPLETED
@@ -336,12 +336,12 @@ expected string or bytes-like object, got 'Mock'
 - **Test environment**: Virtual environment properly configured and activated
 
 #### ✅ CLI Functionality Testing
-- **Basic commands**: 
+- **Basic commands**:
   - `book-tool --help` ✅ (Shows comprehensive help with all subcommands)
   - `book-tool --version` ✅ (Returns "book-tool version 0.1.0")
 - **Subcommand structure**: All major command groups functional:
   - `config` ✅ (Configuration management with init, show, validate, etc.)
-  - `process` ✅ (File processing with scan and prepare subcommands)  
+  - `process` ✅ (File processing with scan and prepare subcommands)
   - `asin` ✅ (ASIN and metadata management)
   - `convert` ✅ (Format conversion functionality)
   - `library` ✅ (Calibre library operations)
@@ -404,7 +404,7 @@ expected string or bytes-like object, got 'Mock'
 
 ### Test Suite Validation
 - [x] All 146 tests pass (100% pass rate)
-- [x] No regressions in existing functionality  
+- [x] No regressions in existing functionality
 - [x] Core functionality validated (minor style issues only)
 - [x] Test coverage maintains comprehensive levels
 

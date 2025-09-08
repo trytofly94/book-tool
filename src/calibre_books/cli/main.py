@@ -13,7 +13,6 @@ from typing import Optional
 
 import click
 from rich.console import Console
-from rich.logging import RichHandler
 
 from .. import __version__
 from ..config.manager import ConfigManager
@@ -26,6 +25,7 @@ from .convert import convert
 from .config import config as config_cmd
 from .library import library
 from .download import download
+from .validate import validate
 
 console = Console()
 
@@ -89,10 +89,10 @@ def main(
 ) -> None:
     """
     Book Tool - Professional eBook processing, ASIN lookup, and KFX conversion.
-    
+
     A comprehensive command-line interface for processing existing eBook files,
     adding ASIN metadata, and converting to KFX format for Goodreads integration.
-    
+
     Examples:
         book-tool process scan --input-dir ./books --check-asin
         book-tool process prepare --input-dir ./books --add-asin --lookup
@@ -101,7 +101,7 @@ def main(
     """
     # Set up context object to pass configuration between commands
     ctx.ensure_object(dict)
-    
+
     # Adjust log level based on verbosity
     if quiet:
         log_level = "ERROR"
@@ -109,11 +109,11 @@ def main(
         log_level = "DEBUG"
     elif verbose >= 1:
         log_level = "INFO"
-    
+
     # Set up logging
     setup_logging(log_level, quiet=quiet)
     logger = logging.getLogger(__name__)
-    
+
     try:
         # Initialize configuration manager
         config_manager = ConfigManager(config_path=config)
@@ -121,23 +121,27 @@ def main(
         ctx.obj["dry_run"] = dry_run
         ctx.obj["verbose"] = verbose
         ctx.obj["quiet"] = quiet
-        
+
         logger.debug(f"CLI initialized with config: {config}, dry_run: {dry_run}")
-        
+
         # If no command specified, show help
         if ctx.invoked_subcommand is None:
             console.print("[bold blue]Book Tool[/bold blue]")
             console.print(f"Version: {__version__}")
             console.print("\nUse --help for more information or specify a command:")
             console.print("  • [bold]process[/bold] - Process existing eBook files")
+            console.print(
+                "  • [bold]validate[/bold] - Validate eBook files for corruption"
+            )
             console.print("  • [bold]asin[/bold] - Manage ASINs and metadata")
             console.print("  • [bold]convert[/bold] - Convert book formats")
-            console.print("  • [bold]download[/bold] - Download books from various sources")
+            console.print(
+                "  • [bold]download[/bold] - Download books from various sources"
+            )
             console.print("  • [bold]library[/bold] - Manage Calibre library")
             console.print("  • [bold]config[/bold] - Configuration management")
-            console.print("  • [bold]download[/bold] - Download books from various sources")
             console.print("\nExample: book-tool process scan -i ./books")
-            
+
     except Exception as e:
         logger.error(f"Failed to initialize CLI: {e}")
         if verbose >= 1:
@@ -153,7 +157,7 @@ main.add_command(convert)
 main.add_command(download)
 main.add_command(library)
 main.add_command(config_cmd)
-main.add_command(download)
+main.add_command(validate)
 
 
 def cli_entry_point() -> None:

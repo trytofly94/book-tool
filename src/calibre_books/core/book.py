@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class BookFormat(Enum):
     """Supported book formats."""
+
     MOBI = "mobi"
     EPUB = "epub"
     PDF = "pdf"
@@ -33,6 +34,7 @@ class BookFormat(Enum):
 
 class BookStatus(Enum):
     """Book processing status."""
+
     PENDING = "pending"
     DOWNLOADING = "downloading"
     DOWNLOADED = "downloaded"
@@ -45,9 +47,10 @@ class BookStatus(Enum):
 class BookMetadata(BaseModel):
     """
     Comprehensive book metadata model.
-    
+
     Uses Pydantic for validation and serialization.
     """
+
     title: str = Field(..., min_length=1, description="Book title")
     author: str = Field(..., min_length=1, description="Primary author")
     authors: List[str] = Field(default_factory=list, description="All authors")
@@ -66,8 +69,8 @@ class BookMetadata(BaseModel):
     word_count: Optional[int] = Field(None, ge=1, description="Number of words")
     file_size: Optional[int] = Field(None, ge=0, description="File size in bytes")
     format: Optional[BookFormat] = Field(None, description="Book format")
-    
-    @model_validator(mode='after')
+
+    @model_validator(mode="after")
     def ensure_authors_list(self):
         """Ensure authors list includes the primary author."""
         if not self.authors:
@@ -75,23 +78,25 @@ class BookMetadata(BaseModel):
         elif self.author not in self.authors:
             self.authors.insert(0, self.author)
         return self
-    
-    @field_validator('asin')
+
+    @field_validator("asin")
     @classmethod
     def validate_asin_format(cls, v):
         """Validate ASIN format if provided."""
         if v is not None:
             from ..utils.validation import validate_asin
+
             if not validate_asin(v):
                 raise ValueError("Invalid ASIN format")
         return v
-    
-    @field_validator('isbn')
+
+    @field_validator("isbn")
     @classmethod
     def validate_isbn_format(cls, v):
         """Validate ISBN format if provided."""
         if v is not None:
             from ..utils.validation import validate_isbn
+
             is_valid, normalized = validate_isbn(v)
             if not is_valid:
                 raise ValueError("Invalid ISBN format")
@@ -103,9 +108,10 @@ class BookMetadata(BaseModel):
 class Book:
     """
     Main book data class with file system information.
-    
+
     Combines metadata with file system paths and processing status.
     """
+
     metadata: BookMetadata
     file_path: Optional[Path] = None
     calibre_id: Optional[int] = None
@@ -113,111 +119,114 @@ class Book:
     error_message: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
-    
+
     def __post_init__(self):
         """Post-initialization processing."""
         if self.file_path:
             self.file_path = Path(self.file_path).resolve()
-    
+
     @property
     def title(self) -> str:
         """Convenience property for book title."""
         return self.metadata.title
-    
+
     @property
     def author(self) -> str:
         """Convenience property for primary author."""
         return self.metadata.author
-    
+
     @property
     def series(self) -> Optional[str]:
         """Convenience property for series name."""
         return self.metadata.series
-    
+
     @property
     def asin(self) -> Optional[str]:
         """Convenience property for ASIN."""
         return self.metadata.asin
-    
+
     @property
     def isbn(self) -> Optional[str]:
         """Convenience property for ISBN."""
         return self.metadata.isbn
-    
+
     @property
-    def format(self) -> Optional[str]:
-        """Get book format from file extension."""
-        if not self.file_path:
-            return None
-        suffix = self.file_path.suffix.lower()
-        return suffix.lstrip('.') if suffix else None
-    
+    def format(self) -> Optional[BookFormat]:
+        """Convenience property for book format."""
+        return self.metadata.format
+
+    @property
+    def file_size(self) -> Optional[int]:
+        """Convenience property for file size."""
+        return self.metadata.file_size
+
     @property
     def has_asin(self) -> bool:
-        """Check if book has an ASIN."""
+        """Check if book has ASIN."""
         return self.metadata.asin is not None and len(self.metadata.asin.strip()) > 0
-    
+
     @property
     def file_exists(self) -> bool:
         """Check if the book file exists on disk."""
         return self.file_path is not None and self.file_path.exists()
-    
+
     @property
     def file_size_human(self) -> str:
         """Human-readable file size."""
         if not self.file_path or not self.file_path.exists():
             return "Unknown"
-        
+
         size = self.file_path.stat().st_size
-        for unit in ['B', 'KB', 'MB', 'GB']:
+        for unit in ["B", "KB", "MB", "GB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
         return f"{size:.1f} TB"
-    
+
     def update_status(self, status: BookStatus, error_message: Optional[str] = None):
         """Update book processing status."""
         self.status = status
         self.error_message = error_message
         self.updated_at = datetime.now()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert book to dictionary for serialization."""
         return {
-            'metadata': self.metadata.dict(),
-            'file_path': str(self.file_path) if self.file_path else None,
-            'calibre_id': self.calibre_id,
-            'status': self.status.value,
-            'error_message': self.error_message,
-            'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat(),
+            "metadata": self.metadata.dict(),
+            "file_path": str(self.file_path) if self.file_path else None,
+            "calibre_id": self.calibre_id,
+            "status": self.status.value,
+            "error_message": self.error_message,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Book':
+    def from_dict(cls, data: Dict[str, Any]) -> "Book":
         """Create book instance from dictionary."""
-        metadata = BookMetadata(**data['metadata'])
-        
+        metadata = BookMetadata(**data["metadata"])
+
         book = cls(
             metadata=metadata,
-            file_path=Path(data['file_path']) if data['file_path'] else None,
-            calibre_id=data.get('calibre_id'),
-            status=BookStatus(data['status']),
-            error_message=data.get('error_message'),
+            file_path=Path(data["file_path"]) if data["file_path"] else None,
+            calibre_id=data.get("calibre_id"),
+            status=BookStatus(data["status"]),
+            error_message=data.get("error_message"),
         )
-        
+
         # Parse timestamps
-        if 'created_at' in data:
-            book.created_at = datetime.fromisoformat(data['created_at'])
-        if 'updated_at' in data:
-            book.updated_at = datetime.fromisoformat(data['updated_at'])
-        
+        if "created_at" in data:
+            book.created_at = datetime.fromisoformat(data["created_at"])
+        if "updated_at" in data:
+            book.updated_at = datetime.fromisoformat(data["updated_at"])
+
         return book
 
 
 @dataclass
 class DownloadResult:
     """Result of a book download operation."""
+
     book: Book
     success: bool
     error: Optional[str] = None
@@ -228,6 +237,7 @@ class DownloadResult:
 @dataclass
 class ConversionResult:
     """Result of a book format conversion operation."""
+
     input_file: Path
     output_file: Optional[Path]
     input_format: BookFormat
@@ -242,6 +252,7 @@ class ConversionResult:
 @dataclass
 class ASINLookupResult:
     """Result of an ASIN lookup operation."""
+
     query_title: str
     query_author: Optional[str]
     asin: Optional[str]
@@ -255,6 +266,7 @@ class ASINLookupResult:
 
 class LibraryStats(BaseModel):
     """Statistics about a Calibre library."""
+
     total_books: int = 0
     total_authors: int = 0
     total_series: int = 0
@@ -266,17 +278,17 @@ class LibraryStats(BaseModel):
     duplicate_titles: int = 0
     missing_covers: int = 0
     corrupted_files: int = 0
-    
+
     @property
     def library_size_human(self) -> str:
         """Human-readable library size."""
         size = self.library_size
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
                 return f"{size:.1f} {unit}"
             size /= 1024.0
         return f"{size:.1f} PB"
-    
+
     @property
     def books_without_asin_percent(self) -> float:
         """Percentage of books without ASIN."""

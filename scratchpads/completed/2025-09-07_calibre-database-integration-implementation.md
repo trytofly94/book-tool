@@ -208,28 +208,28 @@ Testing approach needs to handle:
 ```python
 class CalibreDB:
     """Low-level wrapper for calibredb CLI commands."""
-    
+
     def __init__(self, library_path: Path, cli_path: str = 'auto'):
         self.library_path = library_path
         self.cli_path = self._detect_calibre_cli(cli_path)
-    
+
     def execute_command(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
         """Execute calibredb command with proper error handling."""
         pass
-    
-    def list_books(self, fields: List[str] = None, search: str = None, 
+
+    def list_books(self, fields: List[str] = None, search: str = None,
                    limit: int = None, offset: int = None) -> List[Dict]:
         """List books with filtering and field selection."""
         pass
-    
+
     def get_metadata(self, book_id: int) -> Dict:
         """Get detailed metadata for specific book."""
         pass
-    
+
     def set_metadata(self, book_id: int, metadata: Dict) -> bool:
         """Update metadata for specific book."""
         pass
-    
+
     def find_duplicates(self) -> List[List[int]]:
         """Find duplicate books in library."""
         pass
@@ -239,19 +239,19 @@ class CalibreDB:
 ```python
 class ProgressReporter:
     """Standard progress reporting interface."""
-    
+
     def start_operation(self, operation: str, total: int):
         """Start a new operation with total item count."""
         pass
-    
+
     def update_progress(self, current: int, message: str = None):
         """Update progress with current item count."""
         pass
-    
+
     def finish_operation(self, message: str = None):
         """Mark operation as complete."""
         pass
-    
+
     def report_error(self, error: str):
         """Report an error during operation."""
         pass
@@ -297,17 +297,17 @@ class MetadataError(CalibreError):
 ```python
 class CalibreValidator:
     """Validation utilities for Calibre data."""
-    
+
     @staticmethod
     def validate_library_path(path: Path) -> bool:
         """Check if path contains valid Calibre library."""
         return (path / 'metadata.db').exists()
-    
+
     @staticmethod
     def validate_book_metadata(metadata: Dict) -> List[str]:
         """Validate book metadata and return list of issues."""
         pass
-    
+
     @staticmethod
     def sanitize_filename(filename: str) -> str:
         """Sanitize filename for file system compatibility."""
@@ -389,7 +389,7 @@ class CalibreValidator:
 - ✅ Created safe file removal with confirmation and rollback
 - ✅ Added detailed cleanup reporting with space impact
 
-**Phase 8 - Search and Export**: ✅ COMPLETE  
+**Phase 8 - Search and Export**: ✅ COMPLETE
 - ✅ Implemented `search_library()` with advanced query parsing
 - ✅ Added `export_library()` with multiple format support (CSV, JSON, XML)
 - ✅ Created custom field inclusion and export streaming
@@ -599,7 +599,7 @@ The Calibre database integration implementation has been thoroughly tested with 
 - **Library Statistics Processing**:
   - 100 books: 0.002s (basic), 0.001s (detailed)
   - 1,000 books: 0.006s (basic), 0.013s (detailed)
-  - 5,000 books: 0.029s (basic), 0.055s (detailed)  
+  - 5,000 books: 0.029s (basic), 0.055s (detailed)
   - 10,000 books: 0.060s (basic), 0.112s (detailed)
 - **Scalability**: Linear performance scaling with library size
 - **Memory efficiency**: Handles large datasets without memory issues
@@ -656,7 +656,7 @@ The Calibre database integration implementation has been thoroughly tested with 
 ### 🎉 VALIDATION CONCLUSIONS
 **✅ FULLY VALIDATED**: The Calibre database integration implementation is **production-ready** with:
 - **100% functional unit tests**
-- **Comprehensive integration test coverage** 
+- **Comprehensive integration test coverage**
 - **Excellent performance characteristics**
 - **Robust error handling**
 - **Complete feature implementation**

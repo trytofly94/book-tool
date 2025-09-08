@@ -22,10 +22,10 @@
 
 ## 3. Architektur-Übersicht
 - **Kern-Logik Verzeichnis**: Haupt-Python-Scripts im Root-Verzeichnis
-- **CLI-Entry-Points**: 
+- **CLI-Entry-Points**:
   - `book_automation_master.sh` (Master-Orchestrator)
   - Individual Python scripts für spezifische Aufgaben
-- **Konfigurationsdateien**: 
+- **Konfigurationsdateien**:
   - Hardcoded Pfade in Scripts (werden zu CLI-Optionen)
   - Cache-Dateien in `/tmp/` für ASIN-Lookups
 - **Externe Abhängigkeiten**:
@@ -57,17 +57,17 @@
 
 ## 7. Hinweise für die Agenten
 - **Für den Planner-Agent**: Diese Scripts sind funktional aber nicht als Package strukturiert. Transformation zu CLI-Tool erfordert Refactoring der Architektur.
-- **Für den Creator-Agent**: 
+- **Für den Creator-Agent**:
   - Bitte halte dich an PEP8 Python Code-Stil
   - Verwende `argparse` für CLI-Interfaces
   - Implementiere proper logging statt print-Statements
   - Externalisiere Konfiguration aus hardcoded Werten
-- **Für den Tester-Agent**: 
+- **Für den Tester-Agent**:
   - Erstelle Unit-Tests mit `pytest`
   - Mock externe Dependencies (Calibre, librarian, Selenium)
   - Teste CLI-Interfaces mit verschiedenen Argumenten
   - Simuliere Dateisystem-Operationen für sichere Tests
-- **Für den Deployer-Agent**: 
+- **Für den Deployer-Agent**:
   - Erstelle `setup.py` oder `pyproject.toml` für pip-Installation
   - Dokumentiere Installation und Setup in README
   - Stelle sicher, dass alle externen Dependencies dokumentiert sind

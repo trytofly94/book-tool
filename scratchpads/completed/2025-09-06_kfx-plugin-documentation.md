@@ -43,7 +43,7 @@ Dokumentiere die kritische Abhängigkeit des KFX Output Plugins für Calibre, um
 **Verwandte Scratchpads gefunden:**
 1. **`2025-09-05_fix-kfx-config-manager-interface.md`** (aktiv): Behebt KFX ConfigManager Bug - relevant für Integration von Plugin-Checks
 2. **`2025-09-05_calibre-cli-tool-transformation.md`** (abgeschlossen): Architektur-Grundlage des CLI Tools
-3. **`2025-09-06_asin-lookup-implementation.md`** (abgeschlossen): ASIN Lookup Implementierung 
+3. **`2025-09-06_asin-lookup-implementation.md`** (abgeschlossen): ASIN Lookup Implementierung
 4. **`2025-09-06_issue4-final-validation-testing.md`** (abgeschlossen): ConfigManager Validierung
 
 **Keine verwandten Pull Requests gefunden** - das ist die erste Dokumentationsaufgabe für KFX Plugin Requirements.
@@ -52,7 +52,7 @@ Dokumentiere die kritische Abhängigkeit des KFX Output Plugins für Calibre, um
 
 **KFX-bezogene Dateien identifiziert (31 Dateien):**
 - `/src/calibre_books/core/converter.py`: FormatConverter mit KFX-Unterstützung
-- `/src/calibre_books/core/downloader.py`: KFXConverter Implementation 
+- `/src/calibre_books/core/downloader.py`: KFXConverter Implementation
 - `/src/calibre_books/cli/convert.py`: CLI KFX Convert Commands
 - `/tests/integration/test_kfx_conversion_cli.py`: KFX Integration Tests
 - `/tests/unit/test_kfx_converter.py`: KFX Unit Tests
@@ -62,7 +62,7 @@ Dokumentiere die kritische Abhängigkeit des KFX Output Plugins für Calibre, um
 def validate_kfx_plugin(self) -> bool:
     """Validate that KFX Input plugin is available in Calibre."""
     self.logger.info("Validating KFX plugin availability")
-    
+
     # TODO: Implement actual plugin validation
     # This is a placeholder implementation
     return True
@@ -73,7 +73,7 @@ def validate_kfx_plugin(self) -> bool:
 if check_requirements:
     console.print("[cyan]Checking KFX conversion requirements...[/cyan]")
     requirements = converter.check_system_requirements()
-    
+
     table = Table(title="System Requirements")
     # ...
     status_map = {
@@ -100,7 +100,7 @@ if check_requirements:
 
 **Beziehung zu anderen Issues:**
 - Issue #1: KFX conversion ConfigManager bug (BEHOBEN)
-- Issue #3: ASIN lookup not implemented (BEHOBEN) 
+- Issue #3: ASIN lookup not implemented (BEHOBEN)
 - Issue #4: ConfigManager.get() method error (BEHOBEN)
 - Issue #5 ist kritisch für die Benutzerfreundlichkeit des KFX Features
 
@@ -121,7 +121,7 @@ if check_requirements:
 - [ ] **Schritt 1.2**: KFX Prerequisites Untersektion erstellen
   ```markdown
   ### KFX Conversion Prerequisites
-  
+
   For KFX conversion functionality, you need:
   1. Calibre with KFX Output Plugin installed
   2. Plugin verification steps
@@ -246,9 +246,9 @@ def validate_kfx_plugin(self) -> bool:
     """Validate that KFX Output plugin is available in Calibre."""
     import subprocess
     import re
-    
+
     self.logger.info("Validating KFX plugin availability")
-    
+
     try:
         # Run calibre-customize to list plugins
         result = subprocess.run(
@@ -257,11 +257,11 @@ def validate_kfx_plugin(self) -> bool:
             text=True,
             timeout=10
         )
-        
+
         if result.returncode != 0:
             self.logger.error(f"Failed to list Calibre plugins: {result.stderr}")
             return False
-        
+
         # Check for KFX Output plugin
         kfx_pattern = r'KFX Output.*Convert ebooks to KFX format'
         if re.search(kfx_pattern, result.stdout, re.IGNORECASE):
@@ -270,7 +270,7 @@ def validate_kfx_plugin(self) -> bool:
         else:
             self.logger.warning("KFX Output plugin not found. Please install it via Calibre Preferences → Plugins")
             return False
-            
+
     except subprocess.TimeoutExpired:
         self.logger.error("Timeout while checking Calibre plugins")
         return False
@@ -289,17 +289,17 @@ def validate_kfx_plugin(self) -> bool:
 def check_system_requirements(self) -> Dict[str, bool]:
     """Check if all system requirements for KFX conversion are met."""
     requirements = {}
-    
+
     # Check Calibre CLI tools
     requirements['calibre'] = self._check_calibre_available()
     requirements['ebook-convert'] = self._check_ebook_convert_available()
-    
+
     # Check KFX plugin availability
     requirements['kfx_plugin'] = self.validate_kfx_plugin()
-    
+
     # Optional: Check Kindle Previewer
     requirements['kindle_previewer'] = self._check_kindle_previewer_available()
-    
+
     return requirements
 
 def validate_kfx_plugin(self) -> bool:
@@ -320,7 +320,7 @@ def validate_kfx_plugin(self) -> bool:
 ```python
 try:
     converter = KFXConverter(config)
-    
+
     # Check KFX plugin before attempting conversion
     if not converter.validate_kfx_plugin():
         console.print("[red]Error: KFX Output plugin not found![/red]")
@@ -340,17 +340,17 @@ try:
 @click.option("--interactive", is_flag=True, help="Interactive configuration setup")
 def init(interactive: bool):
     """Initialize configuration file with default values."""
-    
+
     # ... existing config initialization ...
-    
+
     # Check KFX plugin availability and warn if missing
     try:
         from ..core.converter import FormatConverter
         from ..config.manager import ConfigManager
-        
+
         temp_config = ConfigManager()
         temp_converter = FormatConverter(temp_config)
-        
+
         if not temp_converter.validate_kfx_plugin():
             console.print("\n[yellow]Warning: KFX Output plugin not detected[/yellow]")
             console.print("KFX conversion will not work without this plugin.")
@@ -366,10 +366,10 @@ def init(interactive: bool):
 ```python
 def test_validate_kfx_plugin_success():
     """Test successful KFX plugin detection."""
-    
+
 def test_validate_kfx_plugin_not_found():
     """Test behavior when KFX plugin is not installed."""
-    
+
 def test_validate_kfx_plugin_calibre_not_available():
     """Test behavior when Calibre CLI tools are not available."""
 
@@ -402,7 +402,7 @@ def test_help_text_includes_kfx_requirements():
 
 **Prioritäten:**
 1. **HOCH**: README.md Dokumentation - Sofortige Hilfe für Benutzer
-2. **MITTEL**: Plugin-Validierung implementieren - Bessere Fehlerbehandlung  
+2. **MITTEL**: Plugin-Validierung implementieren - Bessere Fehlerbehandlung
 3. **NIEDRIG**: Interactive Plugin Installation - Nice-to-have Feature
 
 **Architektur-Entscheidungen:**
@@ -477,7 +477,7 @@ def test_help_text_includes_kfx_requirements():
 - [ ] Documentation-Tests für alle Links und Installation-Schritte
 - [ ] User Experience Testing mit realem Test-Verzeichnis
 
-### Code-Qualität und Standards  
+### Code-Qualität und Standards
 - [ ] Alle Code-Änderungen folgen PEP8 Standards
 - [ ] Type-Hints für alle neuen Funktionen hinzugefügt
 - [ ] Logging-Standards befolgt (INFO, WARN, ERROR)
