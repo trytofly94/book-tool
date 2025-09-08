@@ -10,6 +10,7 @@ A professional CLI tool for processing existing eBook files, adding ASIN metadat
 - **Calibre Integration**: Seamless integration with Calibre database and metadata management
 - **KFX Conversion**: Parallel conversion to KFX format for enhanced Goodreads integration
 - **Multi-Source Lookup**: Enhanced metadata lookup using multiple sources including web scraping
+- **Multi-Language Support**: ASIN lookup and metadata extraction for 8 languages (German, French, Spanish, Italian, English, Japanese, Portuguese, Dutch)
 - **Batch Processing**: Efficient parallel processing for large book collections
 
 ## Prerequisites
