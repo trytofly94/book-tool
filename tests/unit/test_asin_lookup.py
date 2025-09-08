@@ -676,9 +676,9 @@ class TestSQLiteCacheManager:
 
             stats = cache_manager.get_stats()
 
-            assert stats.total_entries == 2
-            assert stats.size_human.endswith(" B")
-            assert stats.last_updated is not None
+            assert stats["total_entries"] == 2
+            assert stats["size_human"].endswith(" B")
+            assert stats["last_updated"] is not None
 
     def test_cache_thread_safety(self):
         """Test cache thread safety."""
