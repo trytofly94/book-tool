@@ -11,14 +11,14 @@ Transform the existing collection of Python scripts for book automation (downloa
 
 ### Current State Analysis
 - **Existing Scripts**: 8+ Python scripts with specialized functionality
-- **Architecture**: Individual scripts with hardcoded paths and configurations  
+- **Architecture**: Individual scripts with hardcoded paths and configurations
 - **Dependencies**: Calibre CLI, librarian CLI, Selenium, requests, BeautifulSoup4
 - **Current Usage**: Manual execution of individual scripts or master shell script
 - **Pain Points**: No unified interface, hardcoded configurations, manual installation
 
 ### Target State Vision
 - **Unified CLI**: Single `calibre-books` command with subcommands
-- **Proper Packaging**: Installable via `pip install calibre-books` 
+- **Proper Packaging**: Installable via `pip install calibre-books`
 - **Configuration**: External config files with sensible defaults
 - **Testing**: Comprehensive test suite with CI/CD integration
 - **Documentation**: Professional documentation and examples
@@ -34,7 +34,7 @@ Transform the existing collection of Python scripts for book automation (downloa
 - [ ] Error handling with user-friendly messages
 - [ ] Progress indicators for long-running operations
 
-### Technical Requirements  
+### Technical Requirements
 - [ ] Python 3.9+ compatibility
 - [ ] Cross-platform support (macOS, Linux, Windows)
 - [ ] Minimal external dependencies (only essential ones)
@@ -136,7 +136,7 @@ Transform the existing collection of Python scripts for book automation (downloa
 
 ### Phase 6: Advanced Features & Polish
 - [ ] Add progress indicators for long-running operations
-- [ ] Implement dry-run mode for all destructive operations  
+- [ ] Implement dry-run mode for all destructive operations
 - [ ] Add shell completion (bash, zsh, fish)
 - [ ] Create plugin system for custom ASIN sources
 - [ ] Add configuration backup/restore functionality
@@ -167,7 +167,7 @@ calibre-books/
 │       │   ├── __init__.py
 │       │   ├── main.py           # Main CLI dispatcher
 │       │   ├── download.py       # Download commands
-│       │   ├── asin.py           # ASIN management commands  
+│       │   ├── asin.py           # ASIN management commands
 │       │   ├── convert.py        # Format conversion commands
 │       │   └── config.py         # Configuration commands
 │       ├── core/
@@ -207,7 +207,7 @@ calibre-books/
 ```bash
 # Main command groups
 calibre-books download <options>          # Download books
-calibre-books asin <subcommand>           # ASIN management  
+calibre-books asin <subcommand>           # ASIN management
 calibre-books convert <options>           # Format conversion
 calibre-books library <subcommand>        # Library management
 calibre-books config <subcommand>         # Configuration
@@ -229,21 +229,21 @@ download:
   default_format: mobi
   download_path: ~/Downloads/Books
   librarian_path: librarian
-  
+
 calibre:
   library_path: ~/Calibre-Library
   cli_path: auto  # auto-detect or specify path
-  
+
 asin_lookup:
   cache_path: ~/.calibre-books/asin_cache.json
   sources: [amazon, goodreads, openlibrary]
   rate_limit: 2.0  # seconds between requests
-  
+
 conversion:
   max_parallel: 4
   output_path: ~/Converted-Books
   kfx_plugin_required: true
-  
+
 logging:
   level: INFO
   file: ~/.calibre-books/logs/calibre-books.log
@@ -256,13 +256,13 @@ logging:
 class ASINSource:
     def __init__(self, config: dict):
         pass
-    
+
     def lookup(self, title: str, author: str) -> Optional[str]:
         """Return ASIN or None if not found"""
         pass
-    
+
     def batch_lookup(self, books: List[Book]) -> Dict[str, str]:
-        """Batch lookup for efficiency"""  
+        """Batch lookup for efficiency"""
         pass
 ```
 
@@ -316,7 +316,7 @@ class ASINSource:
 - [ ] Basic CLI entry point working
 
 ### Phase 2 Complete (CLI Interface)
-- [ ] Command hierarchy implemented  
+- [ ] Command hierarchy implemented
 - [ ] All major subcommands available
 - [ ] Help system comprehensive
 - [ ] Global options functional

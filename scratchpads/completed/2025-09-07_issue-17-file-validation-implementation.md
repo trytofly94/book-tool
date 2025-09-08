@@ -115,10 +115,10 @@ Located at `/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/`:
 - **✅ Phase 1**: Extended validation.py with comprehensive file validation functions
   - Added ValidationStatus enum and ValidationResult class
   - Implemented detect_file_format() with magic bytes + file command fallback
-  - Created validate_epub_structure() and validate_mobi_header() 
+  - Created validate_epub_structure() and validate_mobi_header()
   - Added check_extension_mismatch() for detecting misnamed files
 
-- **✅ Phase 2**: Created core/file_validator.py orchestration module  
+- **✅ Phase 2**: Created core/file_validator.py orchestration module
   - Implemented ValidationCache with file modification tracking
   - Added parallel validation with ThreadPoolExecutor
   - Created comprehensive validation summary and reporting

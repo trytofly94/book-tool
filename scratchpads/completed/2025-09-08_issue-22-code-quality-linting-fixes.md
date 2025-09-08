@@ -1,7 +1,7 @@
 # Issue #22: Code Quality - Fix Python linting issues across codebase
 
 **Erstellt**: 2025-09-08
-**Typ**: Enhancement/Refactoring  
+**Typ**: Enhancement/Refactoring
 **Geschätzter Aufwand**: Mittel
 **Verwandtes Issue**: GitHub #22 - Code Quality: Fix Python linting issues across codebase
 
@@ -17,7 +17,7 @@ Das Calibre Book Automation CLI Projekt hat als funktionaler Prototyp begonnen, 
 ## Anforderungen
 - [ ] Flake8 installieren und Code-Violations identifizieren
 - [ ] Systematische Behebung aller Stil-/Formatierungsprobleme
-- [ ] Automatisierte Code-Formatierung (black/autopep8) einrichten  
+- [ ] Automatisierte Code-Formatierung (black/autopep8) einrichten
 - [ ] Pre-commit hooks für kontinuierliche Code-Quality
 - [ ] Regressionstests mit Test-Büchern nach Refactoring
 - [ ] Dokumentation der Code-Standards
@@ -26,7 +26,7 @@ Das Calibre Book Automation CLI Projekt hat als funktionaler Prototyp begonnen, 
 **Relevante Dateien (15 Python files):**
 - `calibre_asin_automation.py` - Hauptlogik für ASIN-Management
 - `enhanced_asin_lookup.py` - Multi-Source ASIN-Lookup (Issue #18)
-- `localization_metadata_extractor.py` - Lokalisierungslogik (Issue #19)  
+- `localization_metadata_extractor.py` - Lokalisierungslogik (Issue #19)
 - `parallel_kfx_converter.py` - KFX-Konvertierung
 - `auto_download_books.py` - Book-Download-Automation
 - Legacy files: `calibre_control_demo.py`, `advanced_calibre_control.py`
@@ -34,7 +34,7 @@ Das Calibre Book Automation CLI Projekt hat als funktionaler Prototyp begonnen, 
 **Erwartete Code-Quality Issues:**
 - Whitespace issues (W293, W291, W292)
 - Line length violations (E501) - besonders bei long string formatting
-- Import issues (F401) - unused imports aus Entwicklungsphasen  
+- Import issues (F401) - unused imports aus Entwicklungsphasen
 - Indentation inconsistencies (E128)
 - Missing docstrings für Funktionen
 - Inconsistent naming conventions
@@ -66,9 +66,9 @@ Das Calibre Book Automation CLI Projekt hat als funktionaler Prototyp begonnen, 
 
 - [ ] **Phase 4: Medium Priority (Consistency)**
   - Whitespace normalization
-  - Variable/function naming consistency  
+  - Variable/function naming consistency
   - Code organization (imports, constants, functions)
-  - **Validation:** Localization test mit "Kinder des Nebels" 
+  - **Validation:** Localization test mit "Kinder des Nebels"
 
 - [ ] **Phase 5: Automation Setup**
   - Pre-commit hooks konfigurieren (.pre-commit-config.yaml)
@@ -93,7 +93,7 @@ Das Calibre Book Automation CLI Projekt hat als funktionaler Prototyp begonnen, 
 - **Total violations**: 5,553 violations across all Python files
 - **Critical (functionality-threatening)**:
   - F821 undefined names: 18 instances (CRITICAL)
-  - F402 import shadows: 2 instances  
+  - F402 import shadows: 2 instances
   - E722 bare except: 6 instances
 - **High Priority**:
   - F401 unused imports: 130 instances

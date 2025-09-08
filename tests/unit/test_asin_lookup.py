@@ -8,7 +8,8 @@ import threading
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from calibre_books.core.asin_lookup import ASINLookupService, CacheManager
+from calibre_books.core.asin_lookup import ASINLookupService
+from calibre_books.core.cache import SQLiteCacheManager
 from calibre_books.core.book import Book, BookMetadata, ASINLookupResult
 
 
@@ -44,9 +45,7 @@ class TestASINLookupService:
         assert service.config_manager == self.mock_config_manager
         assert service.sources == ["amazon", "goodreads", "openlibrary"]
         assert service.rate_limit == 0.1
-        # Accept both SQLiteCacheManager and JSONCacheManager (CacheManager alias)
-        assert hasattr(service.cache_manager, "cache_asin")
-        assert hasattr(service.cache_manager, "get_cached_asin")
+        assert isinstance(service.cache_manager, SQLiteCacheManager)
         assert len(service.user_agents) >= 3
 
     def test_validate_asin_format(self):
@@ -558,6 +557,9 @@ class TestASINLookupService:
                     progress_callback=progress_callback,
                 )
 
+                # Verify result
+                assert result == "B00ZVA3XL6"
+
                 # Progress callback should have been called
                 assert (
                     progress_callback.call_count >= 2
@@ -571,21 +573,21 @@ class TestASINLookupService:
                 assert any("Trying amazon-search" in desc for desc in progress_calls)
 
 
-class TestCacheManager:
-    """Test CacheManager functionality."""
+class TestSQLiteCacheManager:
+    """Test SQLiteCacheManager functionality."""
 
     def test_cache_manager_init_new_cache(self):
-        """Test CacheManager initialization with new cache file."""
+        """Test SQLiteCacheManager initialization with new cache file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "new_cache.json"
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             assert cache_manager.cache_path == cache_path
             assert cache_manager.cache_data == {}
             assert cache_path.parent.exists()  # Directory should be created
 
     def test_cache_manager_init_existing_cache(self):
-        """Test CacheManager initialization with existing cache file."""
+        """Test SQLiteCacheManager initialization with existing cache file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "existing_cache.json"
 
@@ -594,12 +596,12 @@ class TestCacheManager:
             with open(cache_path, "w") as f:
                 json.dump(initial_data, f)
 
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             assert cache_manager.cache_data == initial_data
 
     def test_cache_manager_corrupted_cache(self):
-        """Test CacheManager handling of corrupted cache file."""
+        """Test SQLiteCacheManager handling of corrupted cache file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "corrupted_cache.json"
 
@@ -607,7 +609,7 @@ class TestCacheManager:
             with open(cache_path, "w") as f:
                 f.write("invalid json content")
 
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             # Should handle corruption gracefully
             assert cache_manager.cache_data == {}
@@ -616,7 +618,7 @@ class TestCacheManager:
         """Test caching and retrieving ASINs."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "test_cache.json"
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             # Cache an ASIN
             cache_manager.cache_asin("test_key", "B00ZVA3XL6")
@@ -636,7 +638,7 @@ class TestCacheManager:
         """Test retrieving nonexistent cache key."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "test_cache.json"
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             cached_asin = cache_manager.get_cached_asin("nonexistent_key")
 
@@ -646,7 +648,7 @@ class TestCacheManager:
         """Test clearing cache."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "test_cache.json"
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             # Add some data
             cache_manager.cache_asin("key1", "asin1")
@@ -666,7 +668,7 @@ class TestCacheManager:
         """Test cache statistics."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "test_cache.json"
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             # Add some data
             cache_manager.cache_asin("key1", "asin1")
@@ -682,7 +684,7 @@ class TestCacheManager:
         """Test cache thread safety."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "test_cache.json"
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             # Function to cache ASINs in separate threads
             def cache_asins(thread_id):
@@ -719,7 +721,7 @@ class TestCacheManager:
             cache_path = Path(temp_dir) / "readonly_dir" / "test_cache.json"
 
             # Create cache manager
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             # Make parent directory read-only after creation
             cache_path.parent.chmod(0o444)
@@ -739,7 +741,7 @@ class TestCacheManager:
         """Test cleanup expired method (currently a stub)."""
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_path = Path(temp_dir) / "test_cache.json"
-            cache_manager = CacheManager(cache_path)
+            cache_manager = SQLiteCacheManager(cache_path)
 
             # Add some data
             cache_manager.cache_asin("key1", "asin1")

@@ -59,7 +59,7 @@ Nach der Analyse des aktuellen Codes in `src/calibre_books/core/downloader.py` w
 - [ ] Exception-Klassen in downloader.py importieren und verwenden
 - [ ] Alle 6 generic Exception-Handler durch spezifische ersetzen
 
-### Schritt 2: Input Validation für parse_book_list verbessern  
+### Schritt 2: Input Validation für parse_book_list verbessern
 - [ ] Dateiformate-Validierung hinzufügen (.txt, .csv unterstützen)
 - [ ] Zeilen-Format-Validierung implementieren (Title|Author|Series Pattern)
 - [ ] Leere Zeilen und Kommentare (# prefix) filtern
@@ -76,7 +76,7 @@ Nach der Analyse des aktuellen Codes in `src/calibre_books/core/downloader.py` w
 ### Schritt 4: Configuration Validation erweitern
 - [ ] `_validate_librarian_path()` Methode implementieren
 - [ ] Pfad-Existenz und Ausführbarkeit prüfen
-- [ ] Download-Directory Permissions validieren  
+- [ ] Download-Directory Permissions validieren
 - [ ] Config-Schema-Validierung für alle Download-Parameter
 - [ ] Startup-Validierung mit klaren Error-Messages
 

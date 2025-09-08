@@ -22,7 +22,7 @@ The book-tool project has established a solid CLI foundation with comprehensive 
 
 **❌ Missing Core Functionality:**
 - `convert_single()` - Single file conversion (TODO placeholder)
-- `convert_batch()` - Batch file conversion (TODO placeholder) 
+- `convert_batch()` - Batch file conversion (TODO placeholder)
 - `convert_kfx_batch()` - KFX-specific batch conversion (TODO placeholder)
 - `find_convertible_files()` - File discovery logic (TODO placeholder)
 - `get_supported_formats()` - Dynamic format detection (static placeholder)
@@ -40,7 +40,7 @@ The CLI presents users with conversion commands that fail because the underlying
 $ book-tool convert kfx --input-dir ./books --parallel 4
 # CLI accepts command but FormatConverter.convert_kfx_batch() returns empty list
 
-$ book-tool convert single -i book.epub -f kfx  
+$ book-tool convert single -i book.epub -f kfx
 # CLI accepts command but FormatConverter.convert_single() returns failure result
 ```
 
@@ -50,7 +50,7 @@ This creates a poor user experience and prevents the tool from fulfilling its pr
 
 ### Functional Requirements
 - [ ] Single file conversion using Calibre's `ebook-convert` command
-- [ ] Batch conversion with configurable parallelization (2-8 workers)  
+- [ ] Batch conversion with configurable parallelization (2-8 workers)
 - [ ] KFX-specific conversion with proper plugin validation
 - [ ] File discovery with format filtering and recursive scanning
 - [ ] Dynamic format detection from Calibre capabilities
@@ -58,7 +58,7 @@ This creates a poor user experience and prevents the tool from fulfilling its pr
 - [ ] Comprehensive error handling and recovery
 - [ ] Metadata preservation during conversion
 
-### Technical Requirements  
+### Technical Requirements
 - [ ] Integration with existing ConfigManager for settings
 - [ ] Proper logging using the established LoggerMixin pattern
 - [ ] Type hints and dataclass usage following project conventions
@@ -122,7 +122,7 @@ class FormatConverter(LoggerMixin):
 - **Cons:** Requires refactoring to match new architecture
 - **Assessment:** Best approach - leverages existing working code
 
-**Approach 2: Rewrite from Scratch** 
+**Approach 2: Rewrite from Scratch**
 - **Pros:** Clean implementation matching current architecture
 - **Cons:** Higher risk, longer development time
 - **Assessment:** Unnecessary - working code available
@@ -154,14 +154,14 @@ class FormatConverter(LoggerMixin):
 
 #### Step 3: Implement File Discovery
 - [ ] Implement `find_convertible_files()` with recursive scanning
-- [ ] Support format filtering and extension matching  
+- [ ] Support format filtering and extension matching
 - [ ] Handle symlinks and special files appropriately
 - [ ] Provide progress reporting for large directory scans
 - [ ] Return sorted results for predictable behavior
 
 ### Phase 2: Batch Conversion Implementation
 
-#### Step 4: Implement `convert_batch()` Method  
+#### Step 4: Implement `convert_batch()` Method
 - [ ] Create thread pool for parallel processing
 - [ ] Implement work queue with proper task distribution
 - [ ] Add progress reporting with completion callbacks
@@ -232,7 +232,7 @@ def convert_single(
     progress_callback=None,
 ) -> ConversionResult:
     """Convert a single book file to another format."""
-    
+
     # 1. Validate input file exists and is readable
     # 2. Determine output file path if not specified
     # 3. Build ebook-convert command with options
@@ -254,7 +254,7 @@ def convert_batch(
     progress_callback=None,
 ) -> List[ConversionResult]:
     """Convert multiple files in batch with parallelization."""
-    
+
     # 1. Validate all input files and output directory
     # 2. Create ThreadPoolExecutor with configured workers
     # 3. Submit conversion tasks with progress tracking
@@ -297,7 +297,7 @@ conversion:
 
 **Risk Assessment**:
 - **Low Risk**: Working legacy code exists to port from
-- **Medium Complexity**: Need to adapt legacy code to new architecture  
+- **Medium Complexity**: Need to adapt legacy code to new architecture
 - **High Value**: This completes the core value proposition of the tool
 
 **2025-09-07 (Implementation Complete)**: Successfully implemented all core conversion functionality by adapting working logic from legacy scripts.
@@ -319,7 +319,7 @@ conversion:
 
 - ✅ **convert_kfx_batch()**: KFX-specific batch conversion
   - Pre-flight KFX plugin validation
-  - Enhanced error handling for plugin issues  
+  - Enhanced error handling for plugin issues
   - Special output naming (_from_kfx suffix)
   - KFX-specific guidance in error messages
   - Format validation to ensure actual KFX files
@@ -345,7 +345,7 @@ conversion:
 **Technical Implementation**:
 - Integrated with existing ConfigManager for settings
 - Uses LoggerMixin pattern for consistent logging
-- Thread-safe parallel operations with proper resource cleanup  
+- Thread-safe parallel operations with proper resource cleanup
 - Support for all CLI options (dry-run, progress callbacks, etc.)
 - Comprehensive error handling and validation
 - Format-specific optimization (KFX plugin validation, PDF options, etc.)
@@ -372,7 +372,7 @@ conversion:
 - `src/calibre_books/config/manager.py` - Configuration integration
 - `tests/unit/test_kfx_converter.py` - Test framework to extend
 
-### Legacy Reference Files  
+### Legacy Reference Files
 - `calibre_asin_automation.py` - Calibre integration patterns
 - `book_automation_master.sh` - Orchestration patterns
 - `enhanced_asin_lookup.py` - Error handling patterns
@@ -391,7 +391,7 @@ conversion:
 
 ### Core Implementation
 - [x] `convert_single()` method fully implemented and tested
-- [x] `convert_batch()` method fully implemented and tested  
+- [x] `convert_batch()` method fully implemented and tested
 - [x] `convert_kfx_batch()` method fully implemented and tested
 - [x] `find_convertible_files()` method fully implemented and tested
 - [x] `get_supported_formats()` method dynamically implemented

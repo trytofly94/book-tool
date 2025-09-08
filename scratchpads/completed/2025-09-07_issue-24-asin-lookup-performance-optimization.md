@@ -1,7 +1,7 @@
 # Performance: Optimize ASIN lookup caching and rate limiting
 
 **Erstellt**: 2025-09-07
-**Typ**: Enhancement 
+**Typ**: Enhancement
 **Geschätzter Aufwand**: Groß
 **Verwandtes Issue**: GitHub #24
 

@@ -5,12 +5,20 @@ repos:
       - id: black
         language_version: python3
         args: [--line-length=88]
-  
+
   - repo: https://github.com/PyCQA/flake8
     rev: 7.3.0
     hooks:
       - id: flake8
-  
+        args: [--ignore=E501]  # Ignore line length for now, not part of Issue #32
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+
   - repo: https://github.com/pycqa/autoflake
     rev: v2.3.1
     hooks:
@@ -19,7 +27,7 @@ repos:
           - --remove-all-unused-imports
           - --remove-unused-variables
           - --in-place
-  
+
   - repo: local
     hooks:
       - id: preserve-functionality

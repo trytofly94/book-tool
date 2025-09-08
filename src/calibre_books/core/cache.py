@@ -125,16 +125,19 @@ class SQLiteCacheManager:
 
                 # Create indexes for performance
                 cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_expires_at ON asin_cache(expires_at)"
+                    "CREATE INDEX IF NOT EXISTS idx_expires_at "
+                    "ON asin_cache(expires_at)"
                 )
                 cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_source ON asin_cache(source)"
+                    "CREATE INDEX IF NOT EXISTS idx_source " "ON asin_cache(source)"
                 )
                 cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_confidence ON asin_cache(confidence_score)"
+                    "CREATE INDEX IF NOT EXISTS idx_confidence "
+                    "ON asin_cache(confidence_score)"
                 )
                 cursor.execute(
-                    "CREATE INDEX IF NOT EXISTS idx_last_accessed ON asin_cache(last_accessed)"
+                    "CREATE INDEX IF NOT EXISTS idx_last_accessed "
+                    "ON asin_cache(last_accessed)"
                 )
 
                 # Create statistics table for tracking cache performance
@@ -207,7 +210,7 @@ class SQLiteCacheManager:
                         with self._get_cursor() as cursor:
                             cursor.executemany(
                                 """
-                                INSERT OR REPLACE INTO asin_cache 
+                                INSERT OR REPLACE INTO asin_cache
                                 (cache_key, asin, created_at, expires_at, source, confidence_score, access_count, last_accessed)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                             """,
@@ -252,8 +255,8 @@ class SQLiteCacheManager:
             with self._get_cursor() as cursor:
                 cursor.execute(
                     """
-                    SELECT asin, expires_at, access_count 
-                    FROM asin_cache 
+                    SELECT asin, expires_at, access_count
+                    FROM asin_cache
                     WHERE cache_key = ? AND expires_at > ?
                 """,
                     (cache_key, current_time),
@@ -267,7 +270,7 @@ class SQLiteCacheManager:
                     # Update access statistics
                     cursor.execute(
                         """
-                        UPDATE asin_cache 
+                        UPDATE asin_cache
                         SET access_count = access_count + 1, last_accessed = ?
                         WHERE cache_key = ?
                     """,
@@ -310,7 +313,7 @@ class SQLiteCacheManager:
             with self._get_cursor() as cursor:
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO asin_cache 
+                    INSERT OR REPLACE INTO asin_cache
                     (cache_key, asin, created_at, expires_at, source, confidence_score, access_count, last_accessed)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -409,9 +412,9 @@ class SQLiteCacheManager:
                 # Top accessed entries
                 cursor.execute(
                     """
-                    SELECT cache_key, asin, access_count, source 
-                    FROM asin_cache 
-                    ORDER BY access_count DESC 
+                    SELECT cache_key, asin, access_count, source
+                    FROM asin_cache
+                    ORDER BY access_count DESC
                     LIMIT 10
                 """
                 )
