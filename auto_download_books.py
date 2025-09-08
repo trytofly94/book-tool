@@ -24,7 +24,7 @@ def search_and_download_series(author, series_name, preferred_format="mobi"):
 
     try:
         # Führe die Suche aus
-        result = subprocess.run(
+        subprocess.run(
             ["librarian", "-p", DOWNLOAD_PATH, "search", search_query],
             capture_output=True,
             text=True,

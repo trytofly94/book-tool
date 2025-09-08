@@ -11,6 +11,7 @@ import pytest
 
 from calibre_books.core.converter import FormatConverter
 from calibre_books.config.manager import ConfigManager
+from parallel_kfx_converter import ParallelKFXConverter as KFXConverter
 
 
 class TestKFXPluginValidation:

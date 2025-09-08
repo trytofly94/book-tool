@@ -14,6 +14,7 @@ from typing import Dict, Any
 
 from calibre_books.config.manager import ConfigManager
 from calibre_books.core.book import Book, BookMetadata, BookFormat
+from parallel_kfx_converter import ParallelKFXConverter as KFXConverter
 
 
 class TestKFXConverterInitialization:

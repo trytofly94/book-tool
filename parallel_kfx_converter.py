@@ -500,13 +500,13 @@ def main():
             if max_workers:
                 converter.max_workers = int(max_workers)
 
-            results = converter.parallel_batch_convert(input_dir, dry_run=False)
+            converter.parallel_batch_convert(input_dir, dry_run=False)
 
         elif choice == "5":
             if converter.library_path:
                 limit = input("Limit (leer für alle): ").strip()
                 limit = int(limit) if limit else None
-                results = converter.convert_library_to_kfx(limit=limit, dry_run=True)
+                converter.convert_library_to_kfx(limit=limit, dry_run=True)
             else:
                 print("Kein Calibre Library Pfad verfügbar")
 
@@ -518,7 +518,7 @@ def main():
                 if max_workers:
                     converter.max_workers = int(max_workers)
 
-                results = converter.convert_library_to_kfx(limit=limit, dry_run=False)
+                converter.convert_library_to_kfx(limit=limit, dry_run=False)
             else:
                 print("Kein Calibre Library Pfad verfügbar")
 
