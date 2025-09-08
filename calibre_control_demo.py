@@ -5,111 +5,118 @@ Demonstration der Calibre-Kontrolle via Kommandozeile
 
 import subprocess
 
+
 def list_calibre_tools():
     """
     Zeigt alle verfügbaren Calibre Kommandozeilen-Tools
     """
     calibre_tools = [
-        'calibre',           # GUI starten
-        'calibredb',         # Bibliothek verwalten
-        'ebook-convert',     # Format-Konvertierung
-        'ebook-meta',        # Metadaten bearbeiten
-        'ebook-edit',        # eBook Editor
-        'fetch-ebook-metadata',  # Metadaten von Online-Quellen
-        'lrf2lrs',           # LRF zu LRS konvertieren
-        'lrs2lrf',           # LRS zu LRF konvertieren
-        'calibre-server',    # Content Server starten
-        'calibre-smtp',      # Email-Versand
-        'web2disk',          # Website zu eBook
+        "calibre",  # GUI starten
+        "calibredb",  # Bibliothek verwalten
+        "ebook-convert",  # Format-Konvertierung
+        "ebook-meta",  # Metadaten bearbeiten
+        "ebook-edit",  # eBook Editor
+        "fetch-ebook-metadata",  # Metadaten von Online-Quellen
+        "lrf2lrs",  # LRF zu LRS konvertieren
+        "lrs2lrf",  # LRS zu LRF konvertieren
+        "calibre-server",  # Content Server starten
+        "calibre-smtp",  # Email-Versand
+        "web2disk",  # Website zu eBook
     ]
-    
+
     print("=== Verfügbare Calibre Kommandozeilen-Tools ===")
     for tool in calibre_tools:
         try:
-            result = subprocess.run([tool, '--version'], capture_output=True, text=True)
+            result = subprocess.run([tool, "--version"], capture_output=True, text=True)
             if result.returncode == 0:
-                version = result.stdout.strip().split('\n')[0]
+                version = result.stdout.strip().split("\n")[0]
                 print(f"✓ {tool:<20} - {version}")
             else:
                 print(f"✗ {tool:<20} - Nicht verfügbar")
         except FileNotFoundError:
             print(f"✗ {tool:<20} - Nicht installiert")
 
+
 def demonstrate_calibredb():
     """
     Zeigt calibredb Funktionen (Bibliothek-Verwaltung)
     """
     print("\n=== CalibreDB Beispiele ===")
-    
+
     # Standard Bibliothek-Pfad ermitteln
     try:
-        result = subprocess.run(['calibredb', 'list_categories'], capture_output=True, text=True)
+        result = subprocess.run(
+            ["calibredb", "list_categories"], capture_output=True, text=True
+        )
         print("Verfügbare Kategorien in der Bibliothek:")
         print(result.stdout)
     except subprocess.SubprocessError:
         print("Keine Standard-Bibliothek gefunden")
-    
+
     # Beispiele für calibredb Befehle
     examples = {
-        'Liste alle Bücher': 'calibredb list',
-        'Zeige Buch-Details': 'calibredb show_metadata 1',
-        'Füge Buch hinzu': 'calibredb add /path/to/book.mobi',
-        'Exportiere Buch': 'calibredb export 1 /path/to/export/',
-        'Suche Bücher': 'calibredb list -s "title:Sturmlicht"',
-        'Setze Metadaten': 'calibredb set_metadata 1 --field title:"Neuer Titel"',
-        'Entferne Buch': 'calibredb remove 1',
-        'Import von Verzeichnis': 'calibredb add --recurse /path/to/books/',
+        "Liste alle Bücher": "calibredb list",
+        "Zeige Buch-Details": "calibredb show_metadata 1",
+        "Füge Buch hinzu": "calibredb add /path/to/book.mobi",
+        "Exportiere Buch": "calibredb export 1 /path/to/export/",
+        "Suche Bücher": 'calibredb list -s "title:Sturmlicht"',
+        "Setze Metadaten": 'calibredb set_metadata 1 --field title:"Neuer Titel"',
+        "Entferne Buch": "calibredb remove 1",
+        "Import von Verzeichnis": "calibredb add --recurse /path/to/books/",
     }
-    
+
     for description, command in examples.items():
         print(f"{description}:")
         print(f"  {command}\n")
+
 
 def demonstrate_ebook_convert():
     """
     Zeigt ebook-convert Funktionen
     """
     print("=== eBook-Convert Beispiele ===")
-    
+
     examples = {
-        'MOBI zu EPUB': 'ebook-convert input.mobi output.epub',
-        'EPUB zu KFX (Kindle)': 'ebook-convert input.epub output.azw3 --output-profile kindle_fire',
-        'Mit Metadaten': 'ebook-convert input.mobi output.epub --title "Neuer Titel" --authors "Autor Name"',
-        'PDF zu EPUB': 'ebook-convert input.pdf output.epub --pdf-engine poppler',
-        'Batch-Konvertierung': 'for file in *.mobi; do ebook-convert "$file" "${file%.mobi}.epub"; done',
+        "MOBI zu EPUB": "ebook-convert input.mobi output.epub",
+        "EPUB zu KFX (Kindle)": "ebook-convert input.epub output.azw3 --output-profile kindle_fire",
+        "Mit Metadaten": 'ebook-convert input.mobi output.epub --title "Neuer Titel" --authors "Autor Name"',
+        "PDF zu EPUB": "ebook-convert input.pdf output.epub --pdf-engine poppler",
+        "Batch-Konvertierung": 'for file in *.mobi; do ebook-convert "$file" "${file%.mobi}.epub"; done',
     }
-    
+
     for description, command in examples.items():
         print(f"{description}:")
         print(f"  {command}\n")
+
 
 def demonstrate_ebook_meta():
     """
     Zeigt ebook-meta Funktionen
     """
     print("=== eBook-Meta Beispiele ===")
-    
+
     examples = {
-        'Metadaten anzeigen': 'ebook-meta book.mobi',
-        'Titel setzen': 'ebook-meta book.mobi --title "Neuer Titel"',
-        'Autor setzen': 'ebook-meta book.mobi --authors "Autor Name"',
-        'ASIN hinzufügen': 'ebook-meta book.mobi --identifier amazon:B123456789',
-        'Cover setzen': 'ebook-meta book.mobi --cover cover.jpg',
-        'Mehrere Felder': 'ebook-meta book.mobi --title "Titel" --authors "Autor" --tags "Fantasy,Roman"',
-        'JSON Export': 'ebook-meta book.mobi --get-cover cover.jpg --to-json metadata.json',
+        "Metadaten anzeigen": "ebook-meta book.mobi",
+        "Titel setzen": 'ebook-meta book.mobi --title "Neuer Titel"',
+        "Autor setzen": 'ebook-meta book.mobi --authors "Autor Name"',
+        "ASIN hinzufügen": "ebook-meta book.mobi --identifier amazon:B123456789",
+        "Cover setzen": "ebook-meta book.mobi --cover cover.jpg",
+        "Mehrere Felder": 'ebook-meta book.mobi --title "Titel" --authors "Autor" --tags "Fantasy,Roman"',
+        "JSON Export": "ebook-meta book.mobi --get-cover cover.jpg --to-json metadata.json",
     }
-    
+
     for description, command in examples.items():
         print(f"{description}:")
         print(f"  {command}\n")
+
 
 def practical_calibre_automation():
     """
     Praktisches Beispiel für Calibre-Automatisierung
     """
     print("=== Praktisches Automatisierungs-Beispiel ===")
-    
-    automation_script = '''
+
+    automation_script = """
 # Beispiel-Workflow für automatisierte Buchverarbeitung
 
 # 1. Alle MOBI-Dateien in einem Ordner verarbeiten
@@ -144,9 +151,10 @@ done
 
 # 4. Backup der Bibliothek
 calibredb backup_metadata backup.json
-    '''
-    
+    """
+
     print(automation_script)
+
 
 def create_calibre_wrapper():
     """
@@ -214,28 +222,32 @@ class CalibreController:
 # calibre.add_book('/path/to/book.mobi', {'title': 'Mein Buch'})
 # books = calibre.search_books('title:Sturmlicht')
 '''
-    
-    with open('/Volumes/Entertainment/Bücher/Calibre-Ingest/calibre_controller.py', 'w') as f:
+
+    with open(
+        "/Volumes/Entertainment/Bücher/Calibre-Ingest/calibre_controller.py", "w"
+    ) as f:
         f.write(wrapper_code)
-    
+
     print("Python-Wrapper erstellt: calibre_controller.py")
+
 
 def main():
     print("=== Calibre-Kontrolle Demonstration ===\n")
-    
+
     # Zeige verfügbare Tools
     list_calibre_tools()
-    
+
     # Zeige Verwendungsbeispiele
     demonstrate_calibredb()
-    demonstrate_ebook_convert() 
+    demonstrate_ebook_convert()
     demonstrate_ebook_meta()
-    
+
     # Praktisches Beispiel
     practical_calibre_automation()
-    
+
     # Erstelle Python-Wrapper
     create_calibre_wrapper()
+
 
 if __name__ == "__main__":
     main()
