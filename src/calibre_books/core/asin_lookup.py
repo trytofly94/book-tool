@@ -1560,3 +1560,11 @@ class ASINLookupService(LoggerMixin):
     def __del__(self):
         """Cleanup when object is destroyed."""
         self.close()
+
+
+# Backward compatibility alias for tests
+# Import cache managers for test compatibility
+from .cache import SQLiteCacheManager
+
+# Default to SQLiteCacheManager for backward compatibility
+CacheManager = SQLiteCacheManager
