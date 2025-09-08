@@ -1564,7 +1564,8 @@ class ASINLookupService(LoggerMixin):
 
 # Backward compatibility alias for tests
 # Import cache managers for test compatibility
-from .cache import SQLiteCacheManager
+from .cache import SQLiteCacheManager, JSONCacheManager
 
-# Default to SQLiteCacheManager for backward compatibility
-CacheManager = SQLiteCacheManager
+# Default to JSONCacheManager for backward compatibility with tests
+# Tests expect JSON-based API with cache_data attribute
+CacheManager = JSONCacheManager
