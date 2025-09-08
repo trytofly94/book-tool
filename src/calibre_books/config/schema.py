@@ -207,17 +207,17 @@ download:
   search_timeout: 60            # Search timeout in seconds (10-300)
   download_timeout: 300         # Download timeout in seconds (60-3600)
 
-# Calibre integration settings  
+# Calibre integration settings
 calibre:
   library_path: ~/Calibre-Library   # Path to your Calibre library
-  cli_path: auto                    # Path to Calibre CLI tools (auto for auto-detection)
+  cli_path: auto                    # Path to CLI tools (auto-detect)
 
 # ASIN lookup settings
 asin_lookup:
   cache_path: ~/.book-tool/cache/asin_cache.json  # ASIN cache file
   sources:                          # ASIN lookup sources
     - amazon
-    - goodreads  
+    - goodreads
     - openlibrary
   rate_limit: 2.0                   # Rate limit between requests (seconds)
 

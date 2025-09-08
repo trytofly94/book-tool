@@ -78,10 +78,17 @@ def demonstrate_ebook_convert():
 
     examples = {
         "MOBI zu EPUB": "ebook-convert input.mobi output.epub",
-        "EPUB zu KFX (Kindle)": "ebook-convert input.epub output.azw3 --output-profile kindle_fire",
-        "Mit Metadaten": 'ebook-convert input.mobi output.epub --title "Neuer Titel" --authors "Autor Name"',
-        "PDF zu EPUB": "ebook-convert input.pdf output.epub --pdf-engine poppler",
-        "Batch-Konvertierung": 'for file in *.mobi; do ebook-convert "$file" "${file%.mobi}.epub"; done',
+        "EPUB zu KFX (Kindle)": (
+            "ebook-convert input.epub output.azw3 --output-profile kindle_fire"
+        ),
+        "Mit Metadaten": (
+            'ebook-convert input.mobi output.epub --title "Neuer Titel" '
+            '--authors "Autor Name"'
+        ),
+        "PDF zu EPUB": ("ebook-convert input.pdf output.epub --pdf-engine poppler"),
+        "Batch-Konvertierung": (
+            'for file in *.mobi; do ebook-convert "$file" "${file%.mobi}.epub"; done'
+        ),
     }
 
     for description, command in examples.items():
@@ -101,7 +108,9 @@ def demonstrate_ebook_meta():
         "Autor setzen": 'ebook-meta book.mobi --authors "Autor Name"',
         "ASIN hinzufügen": "ebook-meta book.mobi --identifier amazon:B123456789",
         "Cover setzen": "ebook-meta book.mobi --cover cover.jpg",
-        "Mehrere Felder": 'ebook-meta book.mobi --title "Titel" --authors "Autor" --tags "Fantasy,Roman"',
+        "Mehrere Felder": (
+            'ebook-meta book.mobi --title "Titel" --authors "Autor" --tags "Fantasy,Roman"'
+        ),
         "JSON Export": "ebook-meta book.mobi --get-cover cover.jpg --to-json metadata.json",
     }
 
@@ -122,20 +131,20 @@ def practical_calibre_automation():
 # 1. Alle MOBI-Dateien in einem Ordner verarbeiten
 for book in *.mobi; do
     echo "Verarbeite: $book"
-    
+
     # Metadaten extrahieren
     ebook-meta "$book" > "${book%.mobi}_metadata.txt"
-    
+
     # ASIN hinzufügen (falls vorhanden)
     # ebook-meta "$book" --identifier amazon:B123456789
-    
+
     # Zu EPUB konvertieren
     ebook-convert "$book" "${book%.mobi}.epub" \\
         --output-profile generic_eink \\
         --margin-left 5 --margin-right 5 \\
         --margin-top 5 --margin-bottom 5
-    
-    # Zu KFX für Kindle konvertieren
+
+    # Kindle KFX konvertieren
     ebook-convert "$book" "${book%.mobi}_kindle.azw3" \\
         --output-profile kindle_fire \\
         --no-inline-toc
@@ -165,22 +174,22 @@ class CalibreController:
     """
     Python-Wrapper für Calibre-Operationen
     """
-    
+
     def __init__(self, library_path=None):
         self.library_path = library_path
         self.base_cmd = ['calibredb']
         if library_path:
             self.base_cmd.extend(['--library-path', library_path])
-    
+
     def add_book(self, file_path, metadata=None):
         """Fügt ein Buch zur Bibliothek hinzu"""
         cmd = self.base_cmd + ['add', file_path]
         if metadata:
             for key, value in metadata.items():
                 cmd.extend([f'--{key}', value])
-        
+
         return subprocess.run(cmd, capture_output=True, text=True)
-    
+
     def list_books(self, search=None, fields=None):
         """Listet Bücher in der Bibliothek"""
         cmd = self.base_cmd + ['list']
@@ -188,31 +197,31 @@ class CalibreController:
             cmd.extend(['-s', search])
         if fields:
             cmd.extend(['--fields', fields])
-        
+
         result = subprocess.run(cmd, capture_output=True, text=True)
         return result.stdout if result.returncode == 0 else None
-    
+
     def get_metadata(self, book_id):
         """Holt Metadaten für ein Buch"""
         cmd = self.base_cmd + ['show_metadata', str(book_id)]
         result = subprocess.run(cmd, capture_output=True, text=True)
         return result.stdout if result.returncode == 0 else None
-    
+
     def set_metadata(self, book_id, field, value):
         """Setzt Metadaten für ein Buch"""
-        cmd = self.base_cmd + ['set_metadata', str(book_id), 
+        cmd = self.base_cmd + ['set_metadata', str(book_id),
                                '--field', f'{field}:{value}']
         return subprocess.run(cmd, capture_output=True, text=True)
-    
+
     def convert_book(self, input_path, output_path, options=None):
         """Konvertiert ein Buch zwischen Formaten"""
         cmd = ['ebook-convert', input_path, output_path]
         if options:
             for key, value in options.items():
                 cmd.extend([f'--{key}', str(value)])
-        
+
         return subprocess.run(cmd, capture_output=True, text=True)
-    
+
     def search_books(self, query):
         """Durchsucht die Bibliothek"""
         return self.list_books(search=query)

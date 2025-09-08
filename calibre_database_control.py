@@ -45,7 +45,7 @@ class CalibreDatabaseController:
         """
         with self.connect() as conn:
             query = """
-                SELECT 
+                SELECT
                     books.id,
                     books.title,
                     books.sort,
@@ -89,8 +89,8 @@ class CalibreDatabaseController:
         with self.connect() as conn:
             cursor = conn.execute(
                 """
-                SELECT format, name, uncompressed_size 
-                FROM data 
+                SELECT format, name, uncompressed_size
+                FROM data
                 WHERE book = ?
             """,
                 (book_id,),
@@ -107,8 +107,8 @@ class CalibreDatabaseController:
         with self.connect() as conn:
             cursor = conn.execute(
                 """
-                SELECT type, val 
-                FROM identifiers 
+                SELECT type, val
+                FROM identifiers
                 WHERE book = ?
             """,
                 (book_id,),
@@ -129,7 +129,7 @@ class CalibreDatabaseController:
             # Prüfe ob Identifier bereits existiert
             cursor = conn.execute(
                 """
-                SELECT id FROM identifiers 
+                SELECT id FROM identifiers
                 WHERE book = ? AND type = ?
             """,
                 (book_id, identifier_type),
@@ -141,8 +141,8 @@ class CalibreDatabaseController:
                 # Update bestehenden Identifier
                 conn.execute(
                     """
-                    UPDATE identifiers 
-                    SET val = ? 
+                    UPDATE identifiers
+                    SET val = ?
                     WHERE book = ? AND type = ?
                 """,
                     (value, book_id, identifier_type),
@@ -151,7 +151,7 @@ class CalibreDatabaseController:
                 # Füge neuen Identifier hinzu
                 conn.execute(
                     """
-                    INSERT INTO identifiers (book, type, val) 
+                    INSERT INTO identifiers (book, type, val)
                     VALUES (?, ?, ?)
                 """,
                     (book_id, identifier_type, value),
