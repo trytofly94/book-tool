@@ -13,14 +13,12 @@ import re
 import json
 import threading
 from pathlib import Path
-from typing import List, Optional, Dict, Any, TYPE_CHECKING, Tuple
+from typing import List, Optional, Dict, Any, TYPE_CHECKING
 import concurrent.futures
 from bs4 import BeautifulSoup
 
 from ..utils.logging import LoggerMixin
 from .book import Book, ASINLookupResult
-from .cache import create_cache_manager
-from .rate_limiter import DomainRateLimiter, RateLimitedSession, RateLimitConfig
 
 if TYPE_CHECKING:
     from ..config.manager import ConfigManager
@@ -47,86 +45,29 @@ class ASINLookupService(LoggerMixin):
         # Get ASIN lookup specific configuration with error handling
         try:
             asin_config = config_manager.get_asin_config()
-            cache_config = asin_config.get("cache", {})
-
-            # Determine cache backend and path
-            cache_backend = cache_config.get("backend", "sqlite")
-            if cache_backend == "sqlite":
-                self.cache_path = Path(
-                    cache_config.get("path", "~/.book-tool/asin_cache.db")
-                ).expanduser()
-            else:
-                self.cache_path = Path(
-                    cache_config.get("path", "~/.book-tool/asin_cache.json")
-                ).expanduser()
-
+            self.cache_path = Path(
+                asin_config.get("cache_path", "~/.book-tool/asin_cache.json")
+            ).expanduser()
             self.sources = asin_config.get(
                 "sources", ["amazon", "goodreads", "openlibrary"]
             )
             self.rate_limit = asin_config.get("rate_limit", 2.0)
 
-            # Cache configuration
-            self.cache_ttl_days = cache_config.get("ttl_days", 30)
-            self.cache_backend = cache_backend
-            self.auto_cleanup = cache_config.get("auto_cleanup", True)
-
-            # Rate limiting configuration
-            performance_config = asin_config.get("performance", {})
-            self.max_parallel = performance_config.get("max_parallel", 4)
-            self.connection_pool_size = performance_config.get(
-                "connection_pool_size", 10
-            )
-
-            # Per-domain rate limits
-            rate_limits = performance_config.get("rate_limits", {})
-
             self.logger.debug(
-                f"Initialized ASIN lookup with sources: {self.sources}, cache: {self.cache_path} ({cache_backend})"
+                f"Initialized ASIN lookup with sources: {self.sources}, cache: {self.cache_path}"
             )
         except Exception as e:
             self.logger.warning(f"Failed to load ASIN config, using defaults: {e}")
-            self.cache_path = Path("~/.book-tool/asin_cache.db").expanduser()
+            self.cache_path = Path("~/.book-tool/asin_cache.json").expanduser()
             self.sources = ["amazon", "goodreads", "openlibrary"]
             self.rate_limit = 2.0
-            self.cache_ttl_days = 30
-            self.cache_backend = "sqlite"
-            self.auto_cleanup = True
-            self.max_parallel = 4
-            self.connection_pool_size = 10
-            rate_limits = {}
 
         self.logger.info(
-            f"Initialized ASIN lookup service with sources: {self.sources}, cache backend: {self.cache_backend}"
+            f"Initialized ASIN lookup service with sources: {self.sources}"
         )
 
-        # Initialize cache manager with new architecture
-        self.cache_manager = create_cache_manager(
-            self.cache_path,
-            backend=self.cache_backend,
-            ttl_days=self.cache_ttl_days,
-            auto_cleanup=self.auto_cleanup,
-        )
-
-        # Initialize rate limiter with custom configurations
-        custom_rate_configs = {}
-        for domain, limit_config in rate_limits.items():
-            if isinstance(limit_config, (int, float)):
-                # Simple rate limit number
-                custom_rate_configs[domain] = RateLimitConfig(
-                    requests_per_second=float(limit_config)
-                )
-            elif isinstance(limit_config, dict):
-                # Detailed configuration
-                custom_rate_configs[domain] = RateLimitConfig(**limit_config)
-
-        self.rate_limiter = DomainRateLimiter(custom_rate_configs)
-
-        # Create rate-limited session for HTTP requests
-        self.http_session = RateLimitedSession(
-            self.rate_limiter,
-            pool_connections=self.connection_pool_size,
-            pool_maxsize=self.connection_pool_size * 2,
-        )
+        # Initialize cache manager
+        self.cache_manager = CacheManager(self.cache_path)
 
         # User agents for web scraping - updated for 2025
         self.user_agents = [
@@ -137,7 +78,7 @@ class ASINLookupService(LoggerMixin):
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
         ]
 
-        # Thread lock for cache operations (still needed for some operations)
+        # Thread lock for cache operations
         self._cache_lock = threading.Lock()
 
     def lookup_by_title(
@@ -220,7 +161,6 @@ class ASINLookupService(LoggerMixin):
         # Track errors for better error reporting
         source_errors = {}
         methods_attempted = []
-        best_result = None
 
         for method_name, method in lookup_methods:
             # Skip if source not in requested sources using proper mapping
@@ -253,43 +193,20 @@ class ASINLookupService(LoggerMixin):
                 if asin and self.validate_asin(asin):
                     self.logger.info(f"ASIN found via {method_name}: {asin}")
 
-                    # Calculate confidence score for this result
-                    confidence = self.calculate_result_confidence(
-                        asin, method_name, title, author
-                    )
-
-                    # Cache the result with source and confidence information
+                    # Cache the result
                     if use_cache:
-                        self.cache_manager.cache_asin(
-                            cache_key,
-                            asin,
-                            source=method_name,
-                            confidence_score=confidence,
-                        )
+                        self.cache_manager.cache_asin(cache_key, asin)
 
-                    current_result = ASINLookupResult(
+                    return ASINLookupResult(
                         query_title=title,
                         query_author=author,
                         asin=asin,
-                        metadata={"confidence": confidence},
+                        metadata=None,
                         source=method_name,
                         success=True,
                         lookup_time=time.time() - start_time,
                         from_cache=False,
                     )
-
-                    # Check if this is good enough or if we should try more sources
-                    if not self.should_try_more_sources(current_result):
-                        self.logger.info(
-                            f"High confidence result (score: {confidence:.2f}), stopping early"
-                        )
-                        return current_result
-
-                    # Keep this as best result but continue searching for better
-                    if not best_result or confidence > best_result.metadata.get(
-                        "confidence", 0
-                    ):
-                        best_result = current_result
                 else:
                     if verbose:
                         if asin:
@@ -302,7 +219,8 @@ class ASINLookupService(LoggerMixin):
                             )
                     source_errors[method_name] = "No valid ASIN found"
 
-                # Rate limiting is now handled by the RateLimitedSession automatically
+                # Rate limiting between attempts
+                time.sleep(self.rate_limit)
 
             except Exception as e:
                 error_msg = str(e)
@@ -314,13 +232,6 @@ class ASINLookupService(LoggerMixin):
                         exc_info=True,
                     )
                 continue
-
-        # Return best result if we found any
-        if best_result:
-            self.logger.info(
-                f"Returning best result with confidence {best_result.metadata.get('confidence', 0):.2f}"
-            )
-            return best_result
 
         # No ASIN found - create detailed error message
         if verbose:
@@ -395,18 +306,28 @@ class ASINLookupService(LoggerMixin):
         # Try different lookup methods in priority order for ISBN
         # Map source names to method names for filtering
         source_method_mapping = {
-            "amazon": "isbn-direct",
-            "amazon-search": "isbn-direct",
-            "goodreads": "google-books",  # Goodreads data comes via Google Books API
-            "google-books": "google-books",
-            "openlibrary": "openlibrary",
+            "amazon": [
+                "isbn-direct",
+                "google-books-metadata",
+            ],  # Try both Amazon methods
+            "amazon-search": ["isbn-direct", "google-books-metadata"],
+            "goodreads": [
+                "google-books-direct",
+                "google-books-metadata",
+            ],  # Goodreads data comes via Google Books API
+            "google-books": ["google-books-direct", "google-books-metadata"],
+            "openlibrary": ["openlibrary"],
         }
 
         lookup_methods = [
             ("isbn-direct", lambda: self._lookup_by_isbn_direct(isbn)),
             (
-                "google-books",
+                "google-books-direct",
                 lambda: self._lookup_via_google_books(isbn, None, None, verbose),
+            ),
+            (
+                "google-books-metadata",
+                lambda: self._lookup_isbn_via_metadata_search(isbn, verbose),
             ),
             (
                 "openlibrary",
@@ -414,16 +335,17 @@ class ASINLookupService(LoggerMixin):
             ),
         ]
 
-        best_result = None
-
         for method_name, method in lookup_methods:
             # Skip if source not in requested sources using proper mapping
             method_should_run = False
             for requested_source in search_sources:
-                mapped_method = source_method_mapping.get(
-                    requested_source, requested_source
+                mapped_methods = source_method_mapping.get(
+                    requested_source, [requested_source]
                 )
-                if mapped_method == method_name:
+                # Handle both list and single string mapping
+                if isinstance(mapped_methods, str):
+                    mapped_methods = [mapped_methods]
+                if method_name in mapped_methods:
                     method_should_run = True
                     break
 
@@ -440,56 +362,27 @@ class ASINLookupService(LoggerMixin):
                 if asin and self.validate_asin(asin):
                     self.logger.info(f"ASIN found via {method_name}: {asin}")
 
-                    # Calculate confidence score for this result
-                    confidence = self.calculate_result_confidence(
-                        asin, method_name, f"ISBN:{isbn}", None, isbn
-                    )
-
-                    # Cache the result with source and confidence information
+                    # Cache the result
                     if use_cache:
-                        self.cache_manager.cache_asin(
-                            cache_key,
-                            asin,
-                            source=method_name,
-                            confidence_score=confidence,
-                        )
+                        self.cache_manager.cache_asin(cache_key, asin)
 
-                    current_result = ASINLookupResult(
+                    return ASINLookupResult(
                         query_title=f"ISBN:{isbn}",
                         query_author=None,
                         asin=asin,
-                        metadata={"confidence": confidence},
+                        metadata=None,
                         source=method_name,
                         success=True,
                         lookup_time=time.time() - start_time,
                         from_cache=False,
                     )
 
-                    # Check if this is good enough or if we should try more sources
-                    if not self.should_try_more_sources(current_result):
-                        self.logger.info(
-                            f"High confidence ISBN result (score: {confidence:.2f}), stopping early"
-                        )
-                        return current_result
-
-                    # Keep this as best result but continue searching for better
-                    if not best_result or confidence > best_result.metadata.get(
-                        "confidence", 0
-                    ):
-                        best_result = current_result
-
-                # Rate limiting is now handled by the RateLimitedSession automatically
+                # Rate limiting between attempts
+                time.sleep(self.rate_limit)
 
             except Exception as e:
                 self.logger.warning(f"Lookup method {method_name} failed: {e}")
                 continue
-
-        # Return best result if we found any
-        if best_result:
-            self.logger.info(
-                f"Returning best ISBN result with confidence {best_result.metadata.get('confidence', 0):.2f}"
-            )
-            return best_result
 
         # No ASIN found
         self.logger.info(f"No ASIN found for ISBN: {isbn}")
@@ -509,45 +402,16 @@ class ASINLookupService(LoggerMixin):
         self,
         books: List[Book],
         sources: Optional[List[str]] = None,
-        parallel: Optional[int] = None,
+        parallel: int = 2,
         progress_callback=None,
-        sort_by_cache_likelihood: bool = True,
     ) -> List[ASINLookupResult]:
-        """
-        Perform intelligent batch ASIN lookup for multiple books.
+        """Perform batch ASIN lookup for multiple books."""
+        self.logger.info(f"Starting batch ASIN lookup for {len(books)} books")
 
-        Args:
-            books: List of books to lookup ASINs for
-            sources: Sources to use for lookup
-            parallel: Number of parallel workers (defaults to configured max_parallel)
-            progress_callback: Progress callback function
-            sort_by_cache_likelihood: Whether to prioritize likely cache hits
+        results = []
 
-        Returns:
-            List of ASIN lookup results in original book order
-        """
-        if parallel is None:
-            parallel = self.max_parallel
-
-        self.logger.info(
-            f"Starting intelligent batch ASIN lookup for {len(books)} books (parallel={parallel})"
-        )
-
-        # Create book processing queue with intelligent ordering
-        book_queue = self._create_intelligent_book_queue(
-            books, sort_by_cache_likelihood
-        )
-
-        # Track results with original indices to maintain order
-        results = [None] * len(books)
-        completed_count = 0
-
-        def lookup_single_book_with_index(
-            book_item: Tuple[int, Book],
-        ) -> Tuple[int, ASINLookupResult]:
-            """Lookup ASIN for a single book and return with original index."""
-            original_index, book = book_item
-
+        def lookup_single_book(book: Book) -> ASINLookupResult:
+            """Lookup ASIN for a single book."""
             try:
                 # Prefer ISBN lookup if available, otherwise use title/author
                 if book.isbn:
@@ -566,11 +430,11 @@ class ASINLookupService(LoggerMixin):
                         progress_callback=None,  # No individual progress for batch
                     )
 
-                return original_index, result
+                return result
 
             except Exception as e:
                 self.logger.error(f"Failed to lookup ASIN for book '{book.title}': {e}")
-                return original_index, ASINLookupResult(
+                return ASINLookupResult(
                     query_title=book.title,
                     query_author=book.author,
                     asin=None,
@@ -580,116 +444,55 @@ class ASINLookupService(LoggerMixin):
                     error=str(e),
                 )
 
-        # Use ThreadPoolExecutor for intelligent parallel processing
+        # Use ThreadPoolExecutor for parallel processing
         with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as executor:
-            # Submit all jobs to executor
             futures = []
-            for book_item in book_queue:
-                future = executor.submit(lookup_single_book_with_index, book_item)
+
+            for i, book in enumerate(books):
+                future = executor.submit(lookup_single_book, book)
                 futures.append(future)
 
-            # Process results as they complete
-            for future in concurrent.futures.as_completed(futures):
+                # Update progress if callback provided
+                if progress_callback:
+                    progress_callback(
+                        description=f"Submitted lookup {i + 1}/{len(books)}: {book.title}"
+                    )
+
+                # Stagger requests to respect rate limits
+                time.sleep(self.rate_limit / parallel)
+
+            # Collect results as they complete
+            for i, future in enumerate(concurrent.futures.as_completed(futures)):
                 try:
-                    original_index, result = future.result()
-                    results[original_index] = result
-                    completed_count += 1
+                    result = future.result()
+                    results.append(result)
 
                     if progress_callback:
                         progress_callback(
-                            description=f"Completed lookup {completed_count}/{len(books)}: {result.query_title}"
+                            description=f"Completed lookup {len(results)}/{len(books)}"
                         )
 
                 except Exception as e:
-                    self.logger.error(f"Batch lookup future failed: {e}")
-                    # We'll handle missing results after the loop
-                    completed_count += 1
+                    self.logger.error(f"Batch lookup failed for future {i}: {e}")
+                    # Create a failed result
+                    results.append(
+                        ASINLookupResult(
+                            query_title="Unknown",
+                            query_author=None,
+                            asin=None,
+                            metadata=None,
+                            source=None,
+                            success=False,
+                            error=str(e),
+                        )
+                    )
 
-        # Handle any missing results (shouldn't happen but just in case)
-        for i, result in enumerate(results):
-            if result is None:
-                book = books[i]
-                results[i] = ASINLookupResult(
-                    query_title=book.title,
-                    query_author=book.author,
-                    asin=None,
-                    metadata=None,
-                    source=None,
-                    success=False,
-                    error="Lookup failed to complete",
-                )
-
-        successful_lookups = sum(1 for r in results if r and r.success)
-        cache_hits = sum(1 for r in results if r and r.from_cache)
+        successful_lookups = sum(1 for r in results if r.success)
         self.logger.info(
-            f"Batch ASIN lookup completed: {successful_lookups}/{len(books)} successful ({cache_hits} from cache)"
+            f"Batch ASIN lookup completed: {successful_lookups}/{len(books)} successful"
         )
 
         return results
-
-    def _create_intelligent_book_queue(
-        self, books: List[Book], sort_by_cache_likelihood: bool
-    ) -> List[Tuple[int, Book]]:
-        """
-        Create intelligently ordered book queue for batch processing.
-
-        Prioritizes books likely to be in cache for faster processing.
-        """
-        book_items = [(i, book) for i, book in enumerate(books)]
-
-        if not sort_by_cache_likelihood:
-            return book_items
-
-        def cache_likelihood_score(book_item: Tuple[int, Book]) -> float:
-            """Calculate likelihood that this book will have a cache hit."""
-            _, book = book_item
-            score = 0.0
-
-            # ISBN gives highest cache likelihood
-            if book.isbn:
-                cache_key = f"isbn_{book.isbn}".lower()
-                if self.cache_manager.get_cached_asin(cache_key):
-                    return 10.0  # Definite cache hit
-                score += 3.0  # ISBN is more likely to be cached
-
-            # Title/author combination
-            if book.title and book.author:
-                cache_key = f"{book.title}_{book.author}".lower().strip()
-                if self.cache_manager.get_cached_asin(cache_key):
-                    return 10.0  # Definite cache hit
-                score += 2.0
-            elif book.title:
-                cache_key = f"{book.title}_".lower().strip()
-                if self.cache_manager.get_cached_asin(cache_key):
-                    return 10.0  # Definite cache hit
-                score += 1.0
-
-            # Popular authors/series more likely to be cached
-            if book.author:
-                author_lower = book.author.lower()
-                popular_authors = [
-                    "brandon sanderson",
-                    "stephen king",
-                    "j.k. rowling",
-                    "george r.r. martin",
-                ]
-                if any(author in author_lower for author in popular_authors):
-                    score += 1.0
-
-            return score
-
-        # Sort by cache likelihood (highest first) while preserving original indices
-        try:
-            sorted_items = sorted(book_items, key=cache_likelihood_score, reverse=True)
-            self.logger.debug(
-                f"Sorted {len(books)} books by cache likelihood for batch processing"
-            )
-            return sorted_items
-        except Exception as e:
-            self.logger.warning(
-                f"Failed to sort books by cache likelihood: {e}, using original order"
-            )
-            return book_items
 
     def validate_asin(self, asin: str) -> bool:
         """Validate ASIN format - specifically for Amazon ASINs (not ISBNs)."""
@@ -700,102 +503,6 @@ class ASINLookupService(LoggerMixin):
         # Pattern: B followed by 9 alphanumeric characters
         asin_pattern = re.compile(r"^B[A-Z0-9]{9}$")
         return bool(asin_pattern.match(asin.upper()))
-
-    def calculate_result_confidence(
-        self,
-        asin: str,
-        source: str,
-        query_title: str,
-        query_author: Optional[str] = None,
-        query_isbn: Optional[str] = None,
-    ) -> float:
-        """
-        Calculate confidence score for an ASIN lookup result.
-
-        Args:
-            asin: The ASIN found
-            source: Source where ASIN was found
-            query_title: Title that was searched
-            query_author: Author that was searched (optional)
-            query_isbn: ISBN that was searched (optional)
-
-        Returns:
-            Confidence score between 0.0 and 1.0
-        """
-        confidence = 0.0
-
-        # Base confidence by source reliability
-        source_confidence = {
-            "isbn-direct": 0.95,  # ISBN redirect very reliable
-            "amazon-search": 0.75,  # Web scraping less reliable
-            "google-books": 0.85,  # API more reliable than scraping
-            "openlibrary": 0.70,  # Lower reliability
-            "cache": 1.0,  # Cache is perfect if valid
-        }
-        confidence = source_confidence.get(source, 0.5)
-
-        # ASIN format validation
-        if not self.validate_asin(asin):
-            confidence *= 0.1  # Very low confidence for invalid format
-            return max(0.0, min(1.0, confidence))
-
-        # Query type confidence adjustments
-        if query_isbn:
-            # ISBN queries are most reliable
-            confidence += 0.1
-        elif query_title and query_author:
-            # Title + author is good
-            confidence += 0.05
-        elif query_title:
-            # Title only is less reliable
-            confidence -= 0.05
-
-        # Title/author matching quality (if we had metadata to compare)
-        # This would be enhanced with actual result metadata comparison
-        # For now, we use basic heuristics
-
-        # Historical source success rate adjustment
-        rate_stats = self.rate_limiter.get_domain_stats(
-            "amazon.com" if "amazon" in source else "googleapis.com"
-        )
-        if rate_stats.get("requests_made", 0) > 0:
-            success_rate = 1.0 - (
-                rate_stats.get("backoffs_triggered", 0)
-                / max(1, rate_stats.get("requests_made", 1))
-            )
-            confidence *= 0.8 + 0.2 * success_rate  # Factor in recent success rate
-
-        # Ensure confidence is within bounds
-        return max(0.0, min(1.0, confidence))
-
-    def should_try_more_sources(
-        self,
-        current_result: Optional[ASINLookupResult],
-        confidence_threshold: float = 0.85,
-    ) -> bool:
-        """
-        Determine if we should try more sources based on current result confidence.
-
-        Args:
-            current_result: Current best result
-            confidence_threshold: Minimum confidence to stop searching
-
-        Returns:
-            True if we should try more sources, False to stop early
-        """
-        if not current_result or not current_result.success:
-            return True  # No result yet, keep trying
-
-        # Calculate confidence for current result
-        confidence = self.calculate_result_confidence(
-            current_result.asin,
-            current_result.source,
-            current_result.query_title,
-            current_result.query_author,
-        )
-
-        # Stop if confidence is high enough
-        return confidence < confidence_threshold
 
     def check_availability(self, asin: str, progress_callback=None):
         """Check if ASIN is available on Amazon."""
@@ -809,7 +516,7 @@ class ASINLookupService(LoggerMixin):
             url = f"https://www.amazon.com/dp/{asin}"
             headers = {"User-Agent": self.user_agents[0]}
 
-            response = self.http_session.get(
+            response = requests.get(
                 url, headers=headers, timeout=10, allow_redirects=True
             )
 
@@ -844,7 +551,7 @@ class ASINLookupService(LoggerMixin):
         return Availability(available=available, metadata=metadata)
 
     def _lookup_by_isbn_direct(self, isbn: str) -> Optional[str]:
-        """Direct ISBN to ASIN lookup via Amazon redirect."""
+        """Direct ISBN to ASIN lookup via Amazon redirect with enhanced Kindle edition detection."""
         if not isbn:
             return None
 
@@ -856,20 +563,170 @@ class ASINLookupService(LoggerMixin):
             url = f"https://www.amazon.com/dp/{clean_isbn}"
             headers = {"User-Agent": self.user_agents[0]}
 
-            response = self.http_session.get(
+            response = requests.get(
                 url, headers=headers, allow_redirects=True, timeout=10
             )
 
             if response.status_code == 200:
-                # Look for ASIN in the final URL
+                # Look for ASIN in the final URL (direct redirect)
                 final_url = response.url
                 asin_match = re.search(r"/dp/([B][A-Z0-9]{9})", final_url)
 
                 if asin_match:
+                    self.logger.debug(
+                        f"ISBN direct lookup: Found ASIN via redirect: {asin_match.group(1)}"
+                    )
                     return asin_match.group(1)
+
+                # If no redirect to ASIN, parse the page content for Kindle editions
+                self.logger.debug(
+                    "ISBN direct lookup: No ASIN redirect, parsing page content"
+                )
+                soup = BeautifulSoup(response.content, "html.parser")
+
+                # Strategy 1: Look for Kindle edition links in format switcher or related products
+                format_links = soup.find_all("a", href=True)
+
+                for link in format_links:
+                    href = link.get("href", "")
+
+                    # Look for links that mention kindle, ebook, or digital
+                    link_text = link.get_text(strip=True).lower()
+                    if (
+                        "kindle" in href.lower()
+                        or "kindle" in link_text
+                        or "ebook" in href.lower()
+                        or "ebook" in link_text
+                        or "digital" in link_text
+                    ):
+
+                        # Extract ASIN from these links
+                        asin_match = re.search(r"/dp/([B][A-Z0-9]{9})", href)
+                        if asin_match:
+                            asin = asin_match.group(1)
+                            self.logger.debug(
+                                f"ISBN direct lookup: Found Kindle ASIN: {asin}"
+                            )
+                            return asin
+
+                # Strategy 2: Look for ASINs in JavaScript or hidden data
+                scripts = soup.find_all("script", string=True)
+
+                for script in scripts[:10]:  # Check first 10 scripts
+                    script_content = script.string
+                    if script_content and "kindle" in script_content.lower():
+                        # Look for ASIN patterns in Kindle-related JavaScript
+                        asin_matches = re.findall(r"([B][A-Z0-9]{9})", script_content)
+                        for asin_candidate in asin_matches:
+                            if self.validate_asin(asin_candidate):
+                                self.logger.debug(
+                                    f"ISBN direct lookup: Found ASIN in Kindle script: {asin_candidate}"
+                                )
+                                return asin_candidate
+
+                # Strategy 3: Look in the page source for common Kindle ASIN patterns
+                page_content = response.text
+
+                # Look for data attributes that might contain Kindle ASINs
+                asin_patterns = [
+                    r'data-asin["\']?\s*[=:]\s*["\']([B][A-Z0-9]{9})["\']',  # data-asin attributes
+                    r'"asin"\s*:\s*"([B][A-Z0-9]{9})"',  # JSON asin fields
+                    r'asin["\']?\s*[=:]\s*["\']([B][A-Z0-9]{9})["\']',  # asin variables
+                ]
+
+                for pattern in asin_patterns:
+                    matches = re.findall(pattern, page_content, re.IGNORECASE)
+                    for match in matches:
+                        if self.validate_asin(match):
+                            self.logger.debug(
+                                f"ISBN direct lookup: Found ASIN via pattern match: {match}"
+                            )
+                            return match
+
+                self.logger.debug("ISBN direct lookup: No Kindle ASINs found on page")
 
         except Exception as e:
             self.logger.debug(f"ISBN direct lookup failed: {e}")
+
+        return None
+
+    def _lookup_isbn_via_metadata_search(
+        self, isbn: str, verbose: bool = False
+    ) -> Optional[str]:
+        """ISBN lookup using Google Books metadata to get title/author, then Amazon search for ASIN."""
+        if not isbn:
+            return None
+
+        try:
+            # Step 1: Get book metadata from Google Books
+            if verbose:
+                self.logger.info(f"ISBN metadata search: Getting metadata for {isbn}")
+
+            result = self._lookup_via_google_books(
+                isbn, None, None, verbose, return_metadata=True
+            )
+
+            if not result or len(result) != 2:
+                self.logger.debug(
+                    f"ISBN metadata search: No metadata returned for {isbn}"
+                )
+                return None
+
+            asin, metadata = result
+
+            # If Google Books already found an ASIN, return it
+            if asin:
+                self.logger.debug(
+                    f"ISBN metadata search: ASIN found directly from Google Books: {asin}"
+                )
+                return asin
+
+            # Extract title and author from metadata
+            if not metadata:
+                self.logger.debug(
+                    f"ISBN metadata search: No metadata available for {isbn}"
+                )
+                return None
+
+            title = metadata.get("title")
+            authors = metadata.get("authors", [])
+            author = authors[0] if authors else None
+
+            if not title:
+                self.logger.debug(
+                    f"ISBN metadata search: No title found in metadata for {isbn}"
+                )
+                return None
+
+            if verbose:
+                self.logger.info(
+                    f"ISBN metadata search: Found metadata - Title: '{title}', Author: '{author}'"
+                )
+
+            # Step 2: Use title/author to search Amazon for the Kindle ASIN
+            self.logger.debug(
+                f"ISBN metadata search: Searching Amazon for Kindle edition of '{title}' by {author}"
+            )
+
+            asin = self._lookup_via_amazon_search(title, author, verbose)
+
+            if asin:
+                if verbose:
+                    self.logger.info(
+                        f"ISBN metadata search: Found Kindle ASIN via Amazon search: {asin}"
+                    )
+                return asin
+            else:
+                self.logger.debug(
+                    f"ISBN metadata search: No ASIN found via Amazon search for '{title}' by {author}"
+                )
+
+        except Exception as e:
+            self.logger.debug(f"ISBN metadata search failed for {isbn}: {e}")
+            if verbose:
+                self.logger.error(
+                    f"ISBN metadata search detailed error: {e}", exc_info=True
+                )
 
         return None
 
@@ -940,9 +797,7 @@ class ASINLookupService(LoggerMixin):
                                 f"Amazon search: Using User-Agent: {user_agent[:60]}..."
                             )
 
-                        response = self.http_session.get(
-                            url, headers=headers, timeout=15
-                        )
+                        response = requests.get(url, headers=headers, timeout=15)
 
                         self.logger.debug(
                             f"Amazon search: Attempt {attempt + 1}, status: {response.status_code}, content length: {len(response.content)} bytes"
@@ -972,13 +827,13 @@ class ASINLookupService(LoggerMixin):
 
                         elif response.status_code == 503:
                             self.logger.debug(
-                                f"Amazon search: Service unavailable (503), retrying with different user agent"
+                                "Amazon search: Service unavailable (503), retrying with different user agent"
                             )
                             time.sleep(2**attempt)  # Exponential backoff
                             continue
                         elif response.status_code == 429:
                             self.logger.debug(
-                                f"Amazon search: Rate limited (429), backing off"
+                                "Amazon search: Rate limited (429), backing off"
                             )
                             time.sleep(
                                 5 * (attempt + 1)
@@ -1142,8 +997,20 @@ class ASINLookupService(LoggerMixin):
         title: Optional[str],
         author: Optional[str],
         verbose: bool = False,
+        return_metadata: bool = False,
     ) -> Optional[str]:
-        """Google Books API lookup with improved query formatting and multiple strategies."""
+        """Google Books API lookup with improved query formatting and multiple strategies.
+
+        Args:
+            isbn: ISBN to search for
+            title: Title to search for
+            author: Author to search for
+            verbose: Enable verbose logging
+            return_metadata: If True, return (asin, metadata) tuple instead of just asin
+
+        Returns:
+            ASIN string or None (or tuple if return_metadata=True)
+        """
 
         # Multiple query strategies to improve success rate
         strategies = []
@@ -1174,7 +1041,7 @@ class ASINLookupService(LoggerMixin):
 
         if not strategies:
             self.logger.debug("Google Books: No query parameters provided")
-            return None
+            return None if not return_metadata else (None, None)
 
         for strategy_name, query in strategies:
             try:
@@ -1204,9 +1071,7 @@ class ASINLookupService(LoggerMixin):
                             "Accept": "application/json",
                         }
 
-                        response = self.http_session.get(
-                            url, headers=headers, timeout=15
-                        )
+                        response = requests.get(url, headers=headers, timeout=15)
 
                         self.logger.debug(
                             f"Google Books ({strategy_name}): Attempt {attempt + 1}, status: {response.status_code}, content length: {len(response.content)} bytes"
@@ -1234,7 +1099,7 @@ class ASINLookupService(LoggerMixin):
                                         "publishedDate", "Unknown"
                                     )
                                     self.logger.info(
-                                        f"Google Books ({strategy_name}): Result {i+1}: '{title_found}' by {authors_found} ({published_date})"
+                                        f"Google Books ({strategy_name}): Result {i + 1}: '{title_found}' by {authors_found} ({published_date})"
                                     )
 
                             # Try different ASIN extraction methods
@@ -1242,7 +1107,20 @@ class ASINLookupService(LoggerMixin):
                                 data, verbose, strategy_name
                             )
                             if asin_found:
+                                if return_metadata:
+                                    return (asin_found, data)
                                 return asin_found
+
+                            # If we're doing ISBN lookup and no ASIN found, but we got book metadata,
+                            # return the metadata so we can do a title/author lookup
+                            if return_metadata and isbn and items:
+                                # Return the first valid book result for secondary lookup
+                                for item in items:
+                                    volume_info = item.get("volumeInfo", {})
+                                    if volume_info.get("title") and volume_info.get(
+                                        "authors"
+                                    ):
+                                        return (None, volume_info)
 
                             break  # Success, no need to retry this strategy
 
@@ -1298,7 +1176,7 @@ class ASINLookupService(LoggerMixin):
                 continue
 
         self.logger.debug("Google Books: No ASIN found with any strategy")
-        return None
+        return None if not return_metadata else (None, None)
 
     def _extract_asin_from_google_books_result(
         self, data: dict, verbose: bool, strategy_name: str
@@ -1421,7 +1299,7 @@ class ASINLookupService(LoggerMixin):
                 else:
                     self.logger.debug(f"OpenLibrary: ISBN lookup for {clean_isbn}")
 
-                response = self.http_session.get(url, timeout=10)
+                response = requests.get(url, timeout=10)
 
                 self.logger.debug(
                     f"OpenLibrary: ISBN response status: {response.status_code}"
@@ -1480,7 +1358,7 @@ class ASINLookupService(LoggerMixin):
                         f"OpenLibrary: Title/author search for '{search_query}'"
                     )
 
-                search_response = self.http_session.get(search_url, timeout=10)
+                search_response = requests.get(search_url, timeout=10)
 
                 self.logger.debug(
                     f"OpenLibrary: Search response status: {search_response.status_code}"
@@ -1502,7 +1380,7 @@ class ASINLookupService(LoggerMixin):
                             doc_title = doc.get("title", "Unknown")
                             doc_author = doc.get("author_name", ["Unknown"])
                             self.logger.info(
-                                f"OpenLibrary: Search result {i+1}: '{doc_title}' by {doc_author}"
+                                f"OpenLibrary: Search result {i + 1}: '{doc_title}' by {doc_author}"
                             )
 
                     # Look through results for ISBNs that we can then lookup
@@ -1530,42 +1408,95 @@ class ASINLookupService(LoggerMixin):
         self.logger.debug("OpenLibrary: No ASIN found")
         return None
 
-    def get_performance_stats(self) -> Dict[str, Any]:
-        """Get comprehensive performance statistics."""
-        # Get cache stats
-        cache_stats = self.cache_manager.get_stats()
 
-        # Get rate limiter stats
-        rate_limit_stats = self.rate_limiter.get_all_stats()
+class CacheManager:
+    """Manages ASIN lookup cache."""
 
-        return {
-            "cache": cache_stats,
-            "rate_limiting": rate_limit_stats,
-            "configuration": {
-                "sources": self.sources,
-                "max_parallel": self.max_parallel,
-                "connection_pool_size": self.connection_pool_size,
-                "cache_backend": self.cache_backend,
-                "cache_ttl_days": self.cache_ttl_days,
-            },
-        }
+    def __init__(self, cache_path: Path):
+        self.cache_path = cache_path
+        self.cache_data = {}
+        self._cache_lock = threading.Lock()
+        self._load_cache()
 
-    def close(self):
-        """Clean up resources."""
-        if hasattr(self, "http_session"):
-            self.http_session.close()
-        if hasattr(self, "cache_manager"):
-            self.cache_manager.close()
+    def _load_cache(self):
+        """Load cache from file."""
+        if self.cache_path.exists():
+            try:
+                with open(self.cache_path, "r") as f:
+                    self.cache_data = json.load(f)
+            except Exception:
+                self.cache_data = {}
+        else:
+            self.cache_data = {}
+            # Ensure cache directory exists
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def __del__(self):
-        """Cleanup when object is destroyed."""
-        self.close()
+    def _save_cache(self):
+        """Save cache to file."""
+        try:
+            with open(self.cache_path, "w") as f:
+                json.dump(self.cache_data, f, indent=2)
+        except Exception:
+            pass  # Ignore cache save errors
 
+    def get_cached_asin(self, cache_key: str) -> Optional[str]:
+        """Get cached ASIN for key."""
+        with self._cache_lock:
+            return self.cache_data.get(cache_key)
 
-# Backward compatibility alias for tests
-# Import cache managers for test compatibility
-from .cache import SQLiteCacheManager, JSONCacheManager
+    def cache_asin(self, cache_key: str, asin: str):
+        """Cache an ASIN."""
+        with self._cache_lock:
+            self.cache_data[cache_key] = asin
+            self._save_cache()
 
-# Default to JSONCacheManager for backward compatibility with tests
-# Tests expect JSON-based API with cache_data attribute
-CacheManager = JSONCacheManager
+    def get_stats(self):
+        """Get cache statistics."""
+        from dataclasses import dataclass
+        from datetime import datetime
+
+        @dataclass
+        class Stats:
+            total_entries: int = 0
+            hit_rate: float = 0.0
+            size_human: str = "0 B"
+            last_updated: datetime = datetime.now()
+
+        with self._cache_lock:
+            total_entries = len(self.cache_data)
+
+            # Calculate cache file size
+            if self.cache_path.exists():
+                size_bytes = self.cache_path.stat().st_size
+                last_updated = datetime.fromtimestamp(self.cache_path.stat().st_mtime)
+            else:
+                size_bytes = 0
+                last_updated = datetime.now()
+
+            # Human readable size
+            for unit in ["B", "KB", "MB", "GB"]:
+                if size_bytes < 1024.0:
+                    size_human = f"{size_bytes:.1f} {unit}"
+                    break
+                size_bytes /= 1024.0
+            else:
+                size_human = f"{size_bytes:.1f} TB"
+
+        return Stats(
+            total_entries=total_entries,
+            hit_rate=0.0,  # Would need to track hits/misses for real calculation
+            size_human=size_human,
+            last_updated=last_updated,
+        )
+
+    def clear(self):
+        """Clear all cached entries."""
+        with self._cache_lock:
+            self.cache_data = {}
+            self._save_cache()
+
+    def cleanup_expired(self) -> int:
+        """Remove expired cache entries."""
+        # For now, we don't implement expiration
+        # Could be added later with timestamp tracking
+        return 0
