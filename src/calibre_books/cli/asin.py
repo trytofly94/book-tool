@@ -271,7 +271,7 @@ def batch_update(
         # Update Calibre library with new ASINs
         updated_count = calibre.update_asins(results)
 
-        console.print(f"[green]Batch ASIN update completed[/green]")
+        console.print("[green]Batch ASIN update completed[/green]")
         console.print(f"  Books processed: {len(books_to_process)}")
         console.print(f"  ASINs found: {sum(1 for r in results if r.asin)}")
         console.print(f"  Library updated: {updated_count}")

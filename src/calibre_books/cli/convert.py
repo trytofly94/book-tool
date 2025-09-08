@@ -160,7 +160,7 @@ def kfx(
         # Start KFX conversion
         console.print(f"[cyan]Converting {len(books)} books to KFX format...[/cyan]")
 
-        with ProgressManager(f"Converting to KFX") as progress:
+        with ProgressManager("Converting to KFX") as progress:
             results = converter.convert_batch(
                 books,
                 output_format="kfx",
@@ -173,7 +173,7 @@ def kfx(
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
 
-        console.print(f"\n[green]KFX conversion completed![/green]")
+        console.print("\n[green]KFX conversion completed![/green]")
         console.print(f"  Books processed: {len(books)}")
         console.print(f"  Successful: {successful}")
 
@@ -240,7 +240,7 @@ def single(
             output_file = input_file.parent / f"{input_file.stem}_converted{suffix}"
 
         if dry_run:
-            console.print(f"[yellow]DRY RUN: Would convert:[/yellow]")
+            console.print("[yellow]DRY RUN: Would convert:[/yellow]")
             console.print(f"  Input: {input_file}")
             console.print(f"  Output: {output_file}")
             console.print(f"  Format: {format}")

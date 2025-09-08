@@ -348,7 +348,7 @@ def _display_problem_files(
 
 def _display_all_files(results: List) -> None:
     """Display all validation results in a detailed table."""
-    console.print(f"\n[cyan]Detailed validation results:[/cyan]")
+    console.print("\n[cyan]Detailed validation results:[/cyan]")
 
     table = Table(show_header=True, header_style="bold cyan")
     table.add_column("Status", width=8)
@@ -421,18 +421,18 @@ def _display_single_file_result(result, show_details: bool) -> None:
 
     # Show errors
     if result.errors:
-        console.print(f"\n[red]Errors:[/red]")
+        console.print("\n[red]Errors:[/red]")
         for error in result.errors:
             console.print(f"  • {error}")
 
     # Show warnings
     if result.warnings:
-        console.print(f"\n[yellow]Warnings:[/yellow]")
+        console.print("\n[yellow]Warnings:[/yellow]")
         for warning in result.warnings:
             console.print(f"  • {warning}")
 
     # Show details if requested
     if show_details and result.details:
-        console.print(f"\n[cyan]Details:[/cyan]")
+        console.print("\n[cyan]Details:[/cyan]")
         for key, value in result.details.items():
             console.print(f"  • {key}: {value}")

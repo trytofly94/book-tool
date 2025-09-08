@@ -174,7 +174,7 @@ def init(
         # Create configuration
         config_manager.create_config(config_data, minimal=minimal)
 
-        console.print(f"[green]Configuration initialized successfully![/green]")
+        console.print("[green]Configuration initialized successfully![/green]")
         console.print(f"Config file: {config_path}")
         console.print("\nYou can modify settings using:")
         console.print("  book-tool config edit")
