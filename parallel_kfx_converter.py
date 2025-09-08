@@ -6,9 +6,6 @@ Implementiert die Recherche-Erkenntnisse für parallele Batch-Konvertierung
 
 import subprocess
 import os
-import json
-import sys
-import time
 import concurrent.futures
 from pathlib import Path
 from threading import Lock

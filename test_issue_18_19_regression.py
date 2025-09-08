@@ -7,9 +7,8 @@ Tests that both ASIN lookup fixes and localization features work together
 import os
 import sys
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 import tempfile
-import json
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))

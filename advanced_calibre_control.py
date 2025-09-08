@@ -5,8 +5,6 @@ Erweiterte Calibre-Kontrolle mit verschiedenen Methoden
 
 import subprocess
 import os
-import json
-import sys
 
 class CalibreController:
     """

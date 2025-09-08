@@ -4,8 +4,6 @@ Demonstration der Calibre-Kontrolle via Kommandozeile
 """
 
 import subprocess
-import os
-import json
 
 def list_calibre_tools():
     """

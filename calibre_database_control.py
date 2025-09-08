@@ -6,7 +6,6 @@ WARNUNG: Nur für Experten, kann Bibliothek beschädigen!
 
 import sqlite3
 import os
-import json
 from datetime import datetime
 
 class CalibreDatabaseController:

@@ -9,7 +9,6 @@ import time
 import re
 import json
 import os
-import sys
 import logging
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -429,7 +428,6 @@ class ASINLookupService:
         books_data: Liste von Dicts mit 'isbn', 'title', 'author' Keys
         """
         import concurrent.futures
-        import threading
         
         results = {}
         failed = []

@@ -5,7 +5,6 @@ Tests the new SQLite cache, rate limiting, and confidence scoring on a small sub
 """
 
 import sys
-import os
 import tempfile
 from pathlib import Path
 import logging
@@ -14,10 +13,8 @@ import logging
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from calibre_books.core.book import Book
-from calibre_books.core.cache import SQLiteCacheManager, create_cache_manager
-from calibre_books.core.rate_limiter import DomainRateLimiter, RateLimitedSession
-from calibre_books.core.benchmark import ASINLookupBenchmark
-from calibre_books.config.manager import ConfigManager
+from calibre_books.core.cache import SQLiteCacheManager
+from calibre_books.core.rate_limiter import DomainRateLimiter
 from calibre_books.core.asin_lookup import ASINLookupService
 
 # Set up logging

@@ -10,7 +10,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

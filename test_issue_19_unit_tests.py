@@ -7,11 +7,8 @@ Comprehensive unit tests with mocking for all components
 import os
 import sys
 import unittest
-from unittest.mock import Mock, patch, MagicMock, mock_open
-import json
+from unittest.mock import Mock, patch
 import tempfile
-import zipfile
-from io import BytesIO
 
 # Add current directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))

@@ -8,8 +8,6 @@ import subprocess
 import os
 import re
 import requests
-import time
-from bs4 import BeautifulSoup
 
 def get_amazon_asin(title, author=None):
     """
