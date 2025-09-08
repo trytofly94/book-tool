@@ -145,16 +145,18 @@ class Book:
         return self.metadata.isbn
     
     @property
-    def format(self) -> Optional[str]:
-        """Get book format from file extension."""
-        if not self.file_path:
-            return None
-        suffix = self.file_path.suffix.lower()
-        return suffix.lstrip('.') if suffix else None
+    def format(self) -> Optional[BookFormat]:
+        """Convenience property for book format."""
+        return self.metadata.format
+    
+    @property
+    def file_size(self) -> Optional[int]:
+        """Convenience property for file size."""
+        return self.metadata.file_size
     
     @property
     def has_asin(self) -> bool:
-        """Check if book has an ASIN."""
+        """Check if book has ASIN."""
         return self.metadata.asin is not None and len(self.metadata.asin.strip()) > 0
     
     @property
