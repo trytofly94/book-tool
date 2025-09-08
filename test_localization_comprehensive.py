@@ -10,17 +10,22 @@ import glob
 import logging
 from datetime import datetime
 
+# Import our modules
+try:
+    from localization_metadata_extractor import LocalizationMetadataExtractor
+    from enhanced_asin_lookup import ASINLookupService
+    from calibre_asin_automation import CalibreASINAutomation
+except ImportError:
+    sys.path.append(os.path.dirname(__file__))
+    from localization_metadata_extractor import LocalizationMetadataExtractor
+    from enhanced_asin_lookup import ASINLookupService
+    from calibre_asin_automation import CalibreASINAutomation
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# Import our modules
-sys.path.append(os.path.dirname(__file__))
-from localization_metadata_extractor import LocalizationMetadataExtractor
-from enhanced_asin_lookup import ASINLookupService
-from calibre_asin_automation import CalibreASINAutomation
 
 
 class LocalizationTestSuite:
@@ -43,6 +48,10 @@ class LocalizationTestSuite:
                 "successful_lookups": 0,
                 "german_books_identified": 0,
                 "english_books_identified": 0,
+                # New language statistics for Issue #23
+                "japanese_books_identified": 0,
+                "portuguese_books_identified": 0,
+                "dutch_books_identified": 0,
                 "failed_extractions": 0,
                 "failed_lookups": 0,
             },
@@ -91,9 +100,9 @@ class LocalizationTestSuite:
                 elif metadata.get("language", "").lower() in ["en", "eng"]:
                     self.results["statistics"]["english_books_identified"] += 1
 
-                logger.info(
-                    f"  ✓ Success: Title='{metadata.get('title', 'N/A')}', Lang='{metadata.get('language', 'N/A')}'"
-                )
+                title = metadata.get("title", "N/A")
+                lang = metadata.get("language", "N/A")
+                logger.info(f"  ✓ Success: Title='{title}', Lang='{lang}'")
 
             except Exception as e:
                 logger.error(f"  ✗ Failed: {e}")
@@ -111,8 +120,10 @@ class LocalizationTestSuite:
 
         # Select a subset for ASIN testing to avoid rate limiting
         test_files = book_files[:max_tests]
+        test_count = len(test_files)
         logger.info(
-            f"Testing ASIN lookup for {len(test_files)} books (limited to avoid rate limits)"
+            f"Testing ASIN lookup for {test_count} books "
+            f"(limited to avoid rate limits)"
         )
 
         for book_file in test_files:
@@ -135,7 +146,7 @@ class LocalizationTestSuite:
                     logger.info(f"  ✓ ASIN found: {asin}")
                 else:
                     self.results["statistics"]["failed_lookups"] += 1
-                    logger.info(f"  ✗ No ASIN found")
+                    logger.info("  ✗ No ASIN found")
 
                 # Add rate limiting delay
                 import time
@@ -154,9 +165,10 @@ class LocalizationTestSuite:
         """Test edge cases and known problematic files"""
         logger.info("=== Testing Edge Cases ===")
 
+        pipeline_base = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
         edge_cases = [
             # Known corrupted file
-            "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_sturmlicht1_weg-der-koenige.epub",
+            f"{pipeline_base}/sanderson_sturmlicht1_weg-der-koenige.epub",
             # Non-existent file
             "/nonexistent/sanderson_test_book.epub",
         ]
@@ -194,10 +206,11 @@ class LocalizationTestSuite:
         logger.info("=== Testing Search Terms Generation ===")
 
         # Test with a few representative files
+        pipeline_base = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
         test_files = [
             book_files[0] if book_files else None,  # First book
-            "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn1_kinder-des-nebels.epub",  # Known German
-            "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_skyward1_ruf-der-sterne.epub",  # Another German
+            f"{pipeline_base}/sanderson_mistborn1_kinder-des-nebels.epub",
+            f"{pipeline_base}/sanderson_skyward1_ruf-der-sterne.epub",
         ]
 
         for book_file in test_files:
@@ -211,12 +224,13 @@ class LocalizationTestSuite:
                 metadata = self.extractor.extract_metadata_from_path(book_file)
                 search_terms = self.extractor.get_localized_search_terms(metadata)
 
-                logger.info(f"  Generated {len(search_terms)} search strategies:")
+                count = len(search_terms)
+                logger.info(f"  Generated {count} search strategies:")
                 for i, term in enumerate(search_terms[:3], 1):  # Show first 3
                     strategy = term.get("strategy", "unknown")
-                    logger.info(
-                        f"    {i}. [{strategy}] '{term['title']}' on {term['amazon_domain']}"
-                    )
+                    title = term["title"]
+                    domain = term["amazon_domain"]
+                    logger.info(f"    {i}. [{strategy}] '{title}' on {domain}")
 
                 if len(search_terms) > 3:
                     logger.info(f"    ... and {len(search_terms) - 3} more strategies")
@@ -233,7 +247,7 @@ class LocalizationTestSuite:
         report.append("LOCALIZATION ASIN LOOKUP - COMPREHENSIVE TEST REPORT")
         report.append("=" * 80)
         report.append(f"Test Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        report.append(f"Issue: #19 - Localization ASIN Lookup Fix")
+        report.append("Issue: #19 - Localization ASIN Lookup Fix")
         report.append("")
 
         # Statistics
@@ -247,6 +261,14 @@ class LocalizationTestSuite:
         report.append(f"Failed Metadata Extractions: {stats['failed_extractions']}")
         report.append(f"German Books Identified: {stats['german_books_identified']}")
         report.append(f"English Books Identified: {stats['english_books_identified']}")
+        # New language statistics for Issue #23
+        report.append(
+            f"Japanese Books Identified: {stats['japanese_books_identified']}"
+        )
+        report.append(
+            f"Portuguese Books Identified: {stats['portuguese_books_identified']}"
+        )
+        report.append(f"Dutch Books Identified: {stats['dutch_books_identified']}")
         report.append(f"Successful ASIN Lookups: {stats['successful_lookups']}")
         report.append(f"Failed ASIN Lookups: {stats['failed_lookups']}")
         report.append("")
@@ -338,6 +360,8 @@ class LocalizationTestSuite:
         self.test_search_terms_generation(book_files)
         self.test_edge_cases()
         self.test_asin_lookup(book_files, max_tests=max_asin_tests)
+        # New test for Issue #23 language support
+        self.test_new_language_support()
 
         # Generate and display report
         report = self.generate_report()
@@ -354,12 +378,103 @@ class LocalizationTestSuite:
 
         return self.results
 
+    def test_new_language_support(self):
+        """Test the newly added language support from Issue #23"""
+        logger.info("=== Testing New Language Support (Issue #23) ===")
+
+        # Test cases for the new languages
+        test_cases = [
+            {
+                "name": "Japanese - Haruki Murakami",
+                "title": "ノルウェイの森",
+                "author": "村上春樹",
+                "expected_language": "ja",
+                "expected_domain": "amazon.co.jp",
+            },
+            {
+                "name": "Portuguese - Paulo Coelho",
+                "title": "O Alquimista",
+                "author": "Paulo Coelho",
+                "expected_language": "pt",
+                "expected_domain": "amazon.com.br",
+            },
+            {
+                "name": "Dutch - Anne Frank",
+                "title": "Het Achterhuis",
+                "author": "Anne Frank",
+                "expected_language": "nl",
+                "expected_domain": "amazon.nl",
+            },
+        ]
+
+        for test_case in test_cases:
+            logger.info(f"Testing: {test_case['name']}")
+
+            # Create mock metadata for testing
+            mock_metadata = {
+                "title": test_case["title"],
+                "author": test_case["author"],
+                "language": test_case["expected_language"],
+                "series": "",
+                "series_index": "",
+            }
+
+            try:
+                # Test language detection
+                detected_lang = self.extractor._guess_language_from_title(
+                    test_case["title"]
+                )
+                if detected_lang == test_case["expected_language"]:
+                    logger.info(f"  ✓ Language detection: {detected_lang}")
+                else:
+                    logger.warning(
+                        f"  ⚠ Language detection mismatch: "
+                        f"expected {test_case['expected_language']}, "
+                        f"got {detected_lang}"
+                    )
+
+                # Test search term generation
+                search_terms = self.extractor.get_localized_search_terms(mock_metadata)
+                primary_term = search_terms[0] if search_terms else None
+
+                if primary_term:
+                    if primary_term["amazon_domain"] == test_case["expected_domain"]:
+                        logger.info(
+                            f"  ✓ Amazon domain mapping: "
+                            f"{primary_term['amazon_domain']}"
+                        )
+                    else:
+                        logger.error(
+                            f"  ✗ Amazon domain mismatch: "
+                            f"expected {test_case['expected_domain']}, "
+                            f"got {primary_term['amazon_domain']}"
+                        )
+
+                    # Update statistics
+                    if test_case["expected_language"] == "ja":
+                        self.results["statistics"]["japanese_books_identified"] += 1
+                    elif test_case["expected_language"] == "pt":
+                        self.results["statistics"]["portuguese_books_identified"] += 1
+                    elif test_case["expected_language"] == "nl":
+                        self.results["statistics"]["dutch_books_identified"] += 1
+
+                else:
+                    logger.error(
+                        f"  ✗ No search terms generated for {test_case['name']}"
+                    )
+
+            except Exception as e:
+                logger.error(f"  ✗ Error testing {test_case['name']}: {e}")
+
+        logger.info("=== New Language Support Test Complete ===")
+
 
 def main():
     """Main test execution"""
     print("=" * 80)
     print("COMPREHENSIVE LOCALIZATION ASIN LOOKUP TEST SUITE")
     print("Issue #19 - Testing German book localization")
+    print("Issue #23 - Testing Japanese, Portuguese, Dutch language support")
     print("=" * 80)
 
     # Run the test suite

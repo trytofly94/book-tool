@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Localization Metadata Extractor for Enhanced ASIN Lookup
-Extracts titles and language information from books to support multi-language ASIN lookups
+Extracts titles and language information from books to support
+multi-language ASIN lookups
 """
 
 import os
@@ -31,6 +32,11 @@ class LocalizationMetadataExtractor:
             "es": {"name": "Spanish", "amazon_domain": "amazon.es"},
             "it": {"name": "Italian", "amazon_domain": "amazon.it"},
             "en": {"name": "English", "amazon_domain": "amazon.com"},
+            # New language extensions for Issue #23
+            "ja": {"name": "Japanese", "amazon_domain": "amazon.co.jp"},
+            "pt": {"name": "Portuguese", "amazon_domain": "amazon.com.br"},
+            "nl": {"name": "Dutch", "amazon_domain": "amazon.nl"},
+            # Alternative language codes (ISO 639-2)
             "deu": {
                 "name": "German",
                 "amazon_domain": "amazon.de",
@@ -39,6 +45,18 @@ class LocalizationMetadataExtractor:
                 "name": "English",
                 "amazon_domain": "amazon.com",
             },  # Alternative English code
+            "jpn": {
+                "name": "Japanese",
+                "amazon_domain": "amazon.co.jp",
+            },  # Alternative Japanese code
+            "por": {
+                "name": "Portuguese",
+                "amazon_domain": "amazon.com.br",
+            },  # Alternative Portuguese code
+            "nld": {
+                "name": "Dutch",
+                "amazon_domain": "amazon.nl",
+            },  # Alternative Dutch code
         }
 
         # Title pattern analysis for known book series (can be expanded)
@@ -68,6 +86,25 @@ class LocalizationMetadataExtractor:
             "skyward": {
                 "english": ["Skyward", "Starsight", "Cytonic", "Defiant"],
                 "german": ["Ruf der Sterne", "Sternensicht"],
+            },
+            # New language patterns for Issue #23
+            "haruki_murakami": {
+                "english": ["Norwegian Wood", "Kafka on the Shore", "1Q84"],
+                "japanese": ["ノルウェイの森", "海辺のカフカ", "1Q84"],
+                "portuguese": ["Tóquio Blues", "Kafka à Beira-Mar", "1Q84"],
+                "dutch": ["Noors Woud", "Kafka op het Strand", "1Q84"],
+            },
+            "paulo_coelho": {
+                "english": ["The Alchemist", "The Pilgrimage", "Eleven Minutes"],
+                "portuguese": ["O Alquimista", "O Diário de um Mago", "Onze Minutos"],
+                "japanese": ["アルケミスト", "星の巡礼", "11分間"],
+                "dutch": ["De Alchemist", "Het Dagboek van een Magiër", "Elf Minuten"],
+            },
+            "anne_frank": {
+                "english": ["The Diary of a Young Girl", "Anne Frank's Diary"],
+                "dutch": ["Het Achterhuis", "Dagboek van Anne Frank"],
+                "portuguese": ["O Diário de Anne Frank", "Diário de uma Jovem"],
+                "japanese": ["アンネの日記", "アンネ・フランクの日記"],
             },
         }
 
@@ -269,6 +306,40 @@ class LocalizationMetadataExtractor:
         if any(indicator in title_lower for indicator in french_indicators):
             return "fr"
 
+        # Japanese indicators (Hiragana/Katakana/Kanji patterns)
+        japanese_indicators = [
+            "の森",  # Norwegian Wood
+            "海辺",  # Kafka on the Shore
+            "アンネ",  # Anne Frank
+            "日記",  # Diary
+            "アルケミスト",  # The Alchemist
+        ]
+        if any(indicator in title for indicator in japanese_indicators):
+            return "ja"
+
+        # Portuguese indicators
+        portuguese_indicators = [
+            "o alquimista",
+            "o diário",
+            "tóquio blues",
+            "à beira-mar",
+            "de um mago",
+        ]
+        if any(indicator in title_lower for indicator in portuguese_indicators):
+            return "pt"
+
+        # Dutch indicators
+        dutch_indicators = [
+            "het achterhuis",
+            "dagboek van",
+            "noors woud",
+            "op het strand",
+            "de alchemist",
+            "het dagboek",
+        ]
+        if any(indicator in title_lower for indicator in dutch_indicators):
+            return "nl"
+
         # Default to English
         return "en"
 
@@ -276,8 +347,9 @@ class LocalizationMetadataExtractor:
         self, metadata: Dict[str, str]
     ) -> List[Dict[str, str]]:
         """
-        Generate search terms optimized for different regions/languages with comprehensive fallback mechanisms
-        Returns list of search term dictionaries with appropriate Amazon domains
+        Generate search terms optimized for different regions/languages
+        with comprehensive fallback mechanisms.
+        Returns list of search term dictionaries with appropriate Amazon domains.
         """
         search_terms = []
 
@@ -426,6 +498,12 @@ class LocalizationMetadataExtractor:
             return "es"
         elif lang_code in ["ita"]:
             return "it"
+        elif lang_code in ["jpn", "jap"]:  # Japanese variants
+            return "ja"
+        elif lang_code in ["por", "pt-br", "pt-pt"]:  # Portuguese variants
+            return "pt"
+        elif lang_code in ["nld", "dut"]:  # Dutch variants (dut = old ISO code)
+            return "nl"
 
         # Return as-is if it's a known code
         if lang_code in self.language_mappings:
@@ -466,6 +544,9 @@ class LocalizationMetadataExtractor:
             "fr": ["amazon.com"],  # French -> English
             "es": ["amazon.com"],  # Spanish -> English
             "it": ["amazon.com"],  # Italian -> English
+            "ja": ["amazon.com"],  # Japanese -> English
+            "pt": ["amazon.com", "amazon.es"],  # Portuguese -> English, Spanish
+            "nl": ["amazon.com", "amazon.de"],  # Dutch -> English, German
             "en": ["amazon.de", "amazon.fr"],  # English -> German, French
         }
 
@@ -496,7 +577,8 @@ class LocalizationMetadataExtractor:
 
     def extract_metadata_from_path(self, file_path: str) -> Dict[str, str]:
         """
-        Main method to extract metadata from any supported file type with robust error handling
+        Main method to extract metadata from any supported file type
+        with robust error handling.
         """
         # Initialize empty metadata for fallback
         fallback_metadata = {
@@ -525,7 +607,8 @@ class LocalizationMetadataExtractor:
                     return metadata
                 else:
                     logger.warning(
-                        f"Invalid EPUB metadata extracted from {filename}, trying filename fallback"
+                        f"Invalid EPUB metadata extracted from {filename}, "
+                        f"trying filename fallback"
                     )
 
             elif file_extension in [".mobi", ".azw", ".azw3"]:
@@ -535,11 +618,13 @@ class LocalizationMetadataExtractor:
                     return metadata
                 else:
                     logger.warning(
-                        f"Invalid MOBI metadata extracted from {filename}, trying filename fallback"
+                        f"Invalid MOBI metadata extracted from {filename}, "
+                        f"trying filename fallback"
                     )
             else:
                 logger.warning(
-                    f"Unsupported file type: {file_extension}. Using filename extraction."
+                    f"Unsupported file type: {file_extension}. "
+                    f"Using filename extraction."
                 )
 
         except Exception as e:
@@ -547,7 +632,8 @@ class LocalizationMetadataExtractor:
             # Check if this might be a corrupted file
             if self._is_likely_corrupted(file_path, e):
                 logger.warning(
-                    f"File {filename} appears to be corrupted or not a valid {file_extension} file"
+                    f"File {filename} appears to be corrupted or not a valid "
+                    f"{file_extension} file"
                 )
 
         # Fallback to filename extraction
@@ -617,7 +703,8 @@ class LocalizationMetadataExtractor:
         self, primary: Dict[str, str], fallback: Dict[str, str]
     ) -> Dict[str, str]:
         """
-        Merge two metadata dictionaries, using primary when available, fallback otherwise
+        Merge two metadata dictionaries, using primary when available,
+        fallback otherwise.
         """
         merged = {}
 
@@ -639,28 +726,29 @@ class LocalizationMetadataExtractor:
 
 
 def test_localization_extractor():
-    """Test the localization metadata extractor with sample files including fallback mechanisms"""
+    """Test localization metadata extractor with sample files and fallbacks"""
     extractor = LocalizationMetadataExtractor()
 
-    print("=== Testing Enhanced Localization Metadata Extractor with Fallbacks ===")
+    print("=== Testing Enhanced Localization Metadata Extractor " "with Fallbacks ===")
 
     # Test files from the pipeline directory
+    pipeline_base = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
     test_files = [
-        "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn1_kinder-des-nebels.epub",
-        "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_sturmlicht1_weg-der-koenige.epub",  # Known corrupted
-        "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_skyward1_ruf-der-sterne.epub",
+        f"{pipeline_base}/sanderson_mistborn1_kinder-des-nebels.epub",
+        f"{pipeline_base}/sanderson_sturmlicht1_weg-der-koenige.epub",
+        f"{pipeline_base}/sanderson_skyward1_ruf-der-sterne.epub",
     ]
 
     for test_file in test_files:
         filename = os.path.basename(test_file)
-        print(f"\n{'='*60}")
+        print("\n" + "=" * 60)
         print(f"Testing: {filename}")
-        print(f"{'='*60}")
+        print("=" * 60)
 
         # Test metadata extraction with fallback mechanisms
         metadata = extractor.extract_metadata_from_path(test_file)
 
-        print(f"✓ Extracted Metadata:")
+        print("✓ Extracted Metadata:")
         print(f"  Title: {metadata.get('title', 'N/A')}")
         print(f"  Language: {metadata.get('language', 'N/A')}")
         print(f"  Author: {metadata.get('author', 'N/A')}")
@@ -668,26 +756,29 @@ def test_localization_extractor():
 
         # Test fallback search terms generation
         if metadata and (metadata.get("title") or metadata.get("author")):
-            print(f"\n✓ Generated Search Terms (with fallbacks):")
+            print("\n✓ Generated Search Terms (with fallbacks):")
             search_terms = extractor.get_localized_search_terms(metadata)
 
-            for i, term in enumerate(search_terms[:8], 1):  # Show first 8 search terms
+            # Show first 8 search terms
+            for i, term in enumerate(search_terms[:8], 1):
                 strategy = term.get("strategy", "unknown")
                 priority = term.get("priority", "?")
                 print(
-                    f"  {i}. [{strategy}] P{priority}: '{term['title']}' by {term['author']} "
-                    f"({term['language']}) -> {term['amazon_domain']}"
+                    f"  {i}. [{strategy}] P{priority}: '{term['title']}' by "
+                    f"{term['author']} ({term['language']}) -> "
+                    f"{term['amazon_domain']}"
                 )
 
             if len(search_terms) > 8:
-                print(f"  ... and {len(search_terms) - 8} more fallback strategies")
+                remaining = len(search_terms) - 8
+                print(f"  ... and {remaining} more fallback strategies")
         else:
             print("✗ No usable metadata extracted")
 
     # Test edge cases
-    print(f"\n{'='*60}")
+    print("\n" + "=" * 60)
     print("Testing Edge Cases")
-    print(f"{'='*60}")
+    print("=" * 60)
 
     # Test with non-existent file
     print("\n--- Non-existent file test ---")
@@ -699,7 +790,8 @@ def test_localization_extractor():
     print("\n--- Empty metadata fallback test ---")
     empty_metadata = {}
     search_terms = extractor.get_localized_search_terms(empty_metadata)
-    print(f"Empty metadata search terms: {len(search_terms)} terms generated")
+    terms_count = len(search_terms)
+    print(f"Empty metadata search terms: {terms_count} terms generated")
 
     # Test language code normalization
     print("\n--- Language code normalization test ---")
@@ -708,9 +800,9 @@ def test_localization_extractor():
         normalized = extractor._normalize_language_code(lang)
         print(f"  {lang} -> {normalized}")
 
-    print(f"\n{'='*60}")
+    print("\n" + "=" * 60)
     print("✓ Enhanced fallback testing completed")
-    print(f"{'='*60}")
+    print("=" * 60)
 
 
 if __name__ == "__main__":

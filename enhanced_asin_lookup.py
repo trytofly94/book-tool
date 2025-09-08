@@ -23,7 +23,8 @@ try:
 except ImportError:
     LocalizationMetadataExtractor = None
     print(
-        "Warning: LocalizationMetadataExtractor not available. Localization features disabled."
+        "Warning: LocalizationMetadataExtractor not available. "
+        "Localization features disabled."
     )
 
 # Configure logging
@@ -90,7 +91,8 @@ class ASINLookupService:
             logger.info(f"Extracting localized metadata from: {file_path}")
             metadata = self.localization_extractor.extract_metadata_from_path(file_path)
 
-            # Use extracted metadata if available, otherwise fall back to provided values
+            # Use extracted metadata if available,
+            # otherwise fall back to provided values
             if metadata.get("title"):
                 title = metadata["title"]
                 logger.info(f"Using extracted title: {title}")
@@ -105,7 +107,8 @@ class ASINLookupService:
             # Try localized searches first
             for search_term in search_terms:
                 logger.info(
-                    f"Trying localized search: {search_term['title']} ({search_term['language']}) on {search_term['amazon_domain']}"
+                    f"Trying localized search: {search_term['title']} "
+                    f"({search_term['language']}) on {search_term['amazon_domain']}"
                 )
                 asin = self.lookup_with_localized_terms(search_term, isbn)
                 if asin:
@@ -294,6 +297,13 @@ class ASINLookupService:
                 url = f"https://www.amazon.es/s?k={query}&i=digital-text"
             elif amazon_domain == "amazon.it":
                 url = f"https://www.amazon.it/s?k={query}&i=digital-text"
+            # New language support for Issue #23
+            elif amazon_domain == "amazon.co.jp":
+                url = f"https://www.amazon.co.jp/s?k={query}&i=digital-text"
+            elif amazon_domain == "amazon.com.br":
+                url = f"https://www.amazon.com.br/s?k={query}&i=digital-text"
+            elif amazon_domain == "amazon.nl":
+                url = f"https://www.amazon.nl/s?k={query}&i=digital-text"
             else:
                 # Default to amazon.com
                 url = f"https://www.amazon.com/s?k={query}&i=digital-text"
@@ -418,7 +428,10 @@ class ASINLookupService:
 
         try:
             clean_isbn = re.sub(r"[^0-9X]", "", isbn.upper())
-            url = f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}&format=json&jscmd=data"
+            url = (
+                f"https://openlibrary.org/api/books?bibkeys=ISBN:{clean_isbn}"
+                f"&format=json&jscmd=data"
+            )
 
             response = requests.get(url, timeout=10)
 
@@ -500,10 +513,11 @@ def test_asin_lookup():
     print("=== Enhanced ASIN Lookup Test with Localization ===")
 
     # Test with actual German book file
-    test_file = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/sanderson_mistborn1_kinder-des-nebels.epub"
+    pipeline_base = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+    test_file = f"{pipeline_base}/sanderson_mistborn1_kinder-des-nebels.epub"
 
     if os.path.exists(test_file):
-        print(f"\n=== Testing with real German book file ===")
+        print("\n=== Testing with real German book file ===")
         print(f"File: {os.path.basename(test_file)}")
 
         # Test localized lookup
@@ -544,7 +558,8 @@ def test_asin_lookup():
 
     for book in test_books:
         print(
-            f"\nTesting: {book['title']} by {book['author']} ({book['expected_language']})"
+            f"\nTesting: {book['title']} by {book['author']} "
+            f"({book['expected_language']})"
         )
 
         # Test standard lookup (for comparison)
