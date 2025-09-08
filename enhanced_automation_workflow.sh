@@ -41,7 +41,7 @@ sleep_with_progress() {
     local description="$2"
     local minutes=$((duration/60))
     local seconds=$((duration%60))
-    
+
     log_with_time "Starting $description - Duration: ${minutes}m ${seconds}s"
     sleep "$duration"
     log_with_time "Completed $description"
@@ -88,7 +88,7 @@ for ((i=1; i<=REPEAT_COUNT; i++)); do
     sleep_with_progress $IMPLEMENT_SLEEP "implementation and merge"
 
     log_with_time "=== Completed cycle $i of $REPEAT_COUNT ==="
-    
+
     # Add a brief pause between cycles
     if [ $i -lt $REPEAT_COUNT ]; then
         log_with_time "Preparing for next cycle..."

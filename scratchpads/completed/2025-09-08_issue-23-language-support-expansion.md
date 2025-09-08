@@ -10,7 +10,7 @@ Das ASIN-Lookup-System unterstützt aktuell 5 Sprachen (de, fr, es, it, en) mit 
 
 **Aktuelle Unterstützung:**
 - German (de) → amazon.de
-- French (fr) → amazon.fr  
+- French (fr) → amazon.fr
 - Spanish (es) → amazon.es
 - Italian (it) → amazon.it
 - English (en) → amazon.com
@@ -60,9 +60,9 @@ self.language_mappings = {
 - **Japanese (ja)**: amazon.co.jp (bestätigt aktiv)
 - **Portuguese (pt)**: amazon.com.br (Brasilien, größter portugiesischer Markt)
 - **Dutch (nl)**: amazon.nl (seit 2020 verfügbar)
-- **Medium Priority**: 
+- **Medium Priority**:
   - Chinese (zh) → amazon.cn
-  - Korean (ko) → amazon.co.kr  
+  - Korean (ko) → amazon.co.kr
   - Swedish (sv) → amazon.se
 
 ## Implementierungsplan
@@ -90,7 +90,7 @@ self.language_mappings = {
 - [ ] Mock-Tests für Amazon-Domain-Responses erstellen
 - [ ] Real-World-Testing mit Beispiel-Büchern:
   - Japanisches Buch: "ノルウェイの森" (Norwegian Wood) - Haruki Murakami
-  - Portugiesisches Buch: "O Alquimista" (The Alchemist) - Paulo Coelho  
+  - Portugiesisches Buch: "O Alquimista" (The Alchemist) - Paulo Coelho
   - Niederländisches Buch: "Het Achterhuis" (Anne Frank Diary)
 - [ ] Edge-Case-Testing: Mixed-language metadata, missing language codes
 
@@ -216,11 +216,11 @@ book-tool asin lookup --book "Het Achterhuis" --author "Anne Frank" --verbose
 ## Ressourcen & Referenzen
 - GitHub Issue #23: https://github.com/[repo]/issues/23
 - Bestehende Implementierung: `localization_metadata_extractor.py`
-- ASIN-Lookup-Service: `enhanced_asin_lookup.py` 
+- ASIN-Lookup-Service: `enhanced_asin_lookup.py`
 - Test-Suite: `test_localization_comprehensive.py`
 - Amazon International Domains:
   - https://amazon.co.jp (Japan)
-  - https://amazon.com.br (Brazil/Portugal)  
+  - https://amazon.com.br (Brazil/Portugal)
   - https://amazon.nl (Netherlands)
 - Related Issues:
   - Issue #19: Localization ASIN Lookup (completed)

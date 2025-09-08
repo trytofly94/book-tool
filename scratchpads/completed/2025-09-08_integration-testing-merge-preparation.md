@@ -155,7 +155,7 @@ done
 
 ### Phase 2: Einzelbuch-Validierung ✅ COMPLETED
 **Test 1: "Weg der Könige" (Der Weg der Könige)**
-- ✅ ASIN gefunden: **B004YV7DNI** 
+- ✅ ASIN gefunden: **B004YV7DNI**
 - ✅ Quelle: amazon-search
 - ✅ Lookup-Zeit: 5.19s
 - ✅ Confidence: 0.72
@@ -163,7 +163,7 @@ done
 
 **Test 2: "Kinder des Nebels" (Mistborn 1)**
 - ✅ ASIN gefunden: **B0DD4FWVV2**
-- ✅ Quelle: amazon-search  
+- ✅ Quelle: amazon-search
 - ✅ Lookup-Zeit: 5.06s
 - ✅ Confidence: 0.72
 - **Anmerkung**: Deutsche Übersetzung erfolgreich identifiziert
@@ -177,7 +177,7 @@ done
 
 **Phase 2 Ergebnis**: 3/3 erfolgreich (100% Success Rate)
 **Durchschnittliche Lookup-Zeit**: 5.35s
-**Beobachtungen**: 
+**Beobachtungen**:
 - Rate-Limiting funktioniert korrekt (2s backoff bei 503)
 - Alle Quellen werden durchprobiert (amazon, google-books, openlibrary)
 - Verbose-Output ist sehr detailliert und hilfreich für Debugging

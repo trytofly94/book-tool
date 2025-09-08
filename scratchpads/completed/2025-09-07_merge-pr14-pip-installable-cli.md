@@ -25,13 +25,13 @@ Der Pull Request #14 ist vollständig implementiert und getestet, aber kann aufg
    - Real-world Testing mit Test-Directory erfolgreich
 
 2. **Merge Konflikt**: ❌ CONFLICTING Status
-   - Target Branch: feature/cli-tool-foundation  
+   - Target Branch: feature/cli-tool-foundation
    - Source Branch: feature/fix-pip-installable-cli
    - Betroffene Dateien: README.md, pyproject.toml, CLI files, Scratchpads
 
 3. **Commits zur Übernahme**: 7 Commits seit dem letzten Merge
    - fb040d5: docs: Archive completed pip-installable CLI package scratchpad
-   - c2e72b9: test: Fix BookDownloader error handling and enhance user feedback  
+   - c2e72b9: test: Fix BookDownloader error handling and enhance user feedback
    - 3bf160d: docs: Update scratchpad with complete implementation results
    - 4f36a2d: feat: Add BookDownloader stub class for CLI integration
    - 40ac603: feat: Fix CLI integration - add download command and fix entry point
@@ -62,7 +62,7 @@ Der Pull Request #14 ist vollständig implementiert und getestet, aber kann aufg
   - [x] Test mit Real-world Directory: /Volumes/Entertainment/Bücher/Calibre-Ingest
   - [x] Pip-Installation in clean environment validieren
 
-- [x] Phase 4: PR Merge & Cleanup  
+- [x] Phase 4: PR Merge & Cleanup
   - [x] Updated Branch zu GitHub pushen
   - [x] PR #14 mergen
   - [x] Feature Branch löschen nach erfolgreichem Merge
@@ -114,7 +114,7 @@ Der Pull Request #14 ist vollständig implementiert und getestet, aber kann aufg
 ## Ressourcen & Referenzen
 - **Current PR**: https://github.com/trytofly94/book-tool/pull/14
 - **Target Branch**: feature/cli-tool-foundation
-- **Source Branch**: feature/fix-pip-installable-cli  
+- **Source Branch**: feature/fix-pip-installable-cli
 - **Test Directory**: /Volumes/Entertainment/Bücher/Calibre-Ingest
 - **Completed Scratchpad**: scratchpads/completed/2025-09-07_pip-installable-cli-package.md
 - **Key Files**: src/calibre_books/cli/main.py, pyproject.toml, README.md
@@ -129,7 +129,7 @@ Der Pull Request #14 ist vollständig implementiert und getestet, aber kann aufg
 - [x] Scratchpad archiviert
 
 ---
-**Status**: Abgeschlossen ✅  
+**Status**: Abgeschlossen ✅
 **Zuletzt aktualisiert**: 2025-09-07
 **PR URL**: https://github.com/trytofly94/book-tool/pull/14
 **Merge Commit**: 048d3e6

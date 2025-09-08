@@ -31,7 +31,7 @@ The primary ASIN lookup functionality in book-tool is completely broken for titl
 Located in `src/calibre_books/core/asin_lookup.py`:
 
 1. **ASINLookupService Class**: Main service with three lookup methods for title/author
-   - `_lookup_via_amazon_search()`: Web scraping Amazon search results  
+   - `_lookup_via_amazon_search()`: Web scraping Amazon search results
    - `_lookup_via_google_books()`: Using Google Books API v1
    - `_lookup_via_openlibrary()`: Using OpenLibrary API (ISBN-only currently)
 
@@ -62,7 +62,7 @@ Located in `src/calibre_books/core/asin_lookup.py`:
 - [ ] Test with multiple User-Agent strings to avoid blocking
 - [ ] Add retry mechanism with exponential backoff
 
-### Phase 3: Google Books API Method Repair  
+### Phase 3: Google Books API Method Repair
 - [ ] Debug Google Books API query format for title/author searches
 - [ ] Fix the query parameter encoding (`intitle:`, `inauthor:` format)
 - [ ] Improve ASIN extraction from Google Books response identifiers
@@ -90,10 +90,10 @@ Located in `src/calibre_books/core/asin_lookup.py`:
 
 1. **Web Scraping Resilience**: Amazon frequently changes their HTML structure
    - Solution: Multiple selector strategies, regular testing
-   
+
 2. **API Rate Limiting**: Google Books and other APIs have usage limits
    - Solution: Proper rate limiting, retry with backoff, API key support
-   
+
 3. **Query Formatting**: Different APIs expect different query formats
    - Solution: Source-specific query builders, URL encoding
 
@@ -106,7 +106,7 @@ Located in `src/calibre_books/core/asin_lookup.py`:
 ```bash
 # Test cases that should work after fix
 book-tool asin lookup --book "The Way of Kings" --author "Brandon Sanderson" --verbose
-book-tool asin lookup --book "Mistborn" --author "Brandon Sanderson" --verbose  
+book-tool asin lookup --book "Mistborn" --author "Brandon Sanderson" --verbose
 book-tool asin lookup --book "Dune" --author "Frank Herbert" --verbose
 book-tool asin lookup --book "The Hobbit" --author "J.R.R. Tolkien" --verbose
 ```
@@ -117,7 +117,7 @@ book-tool asin lookup --book "The Hobbit" --author "J.R.R. Tolkien" --verbose
 - Test error handling and fallback behavior
 - Test ASIN validation and extraction
 
-### Integration Tests  
+### Integration Tests
 - Live API testing with known good examples
 - Performance testing with rate limiting
 - Cache behavior verification
@@ -140,13 +140,13 @@ After implementation:
 - Added HTTP request/response logging with sanitized headers
 - Implemented detailed error tracking with source-specific failures
 
-### Phase 2: ✅ Amazon Search Method Repair Complete  
+### Phase 2: ✅ Amazon Search Method Repair Complete
 - Implemented 3 search strategies: books, kindle, all-departments
 - Added retry logic with exponential backoff for 503/429 errors
 - Updated User-Agent rotation with 5 modern browser strings
 - Created 4-method ASIN extraction system:
   1. data-asin attributes (primary)
-  2. href link patterns (/dp/, /gp/product/, ASIN= params)  
+  2. href link patterns (/dp/, /gp/product/, ASIN= params)
   3. JavaScript/JSON data extraction
   4. Meta tags and element IDs
 - Successfully tested with "The Way of Kings" and "Mistborn"
@@ -176,7 +176,7 @@ After implementation:
 - Fixed source filtering logic with proper mappings
 - Implemented strict ASIN validation (must start with 'B')
 - Successfully tested all examples from issue:
-  - "The Way of Kings" by Brandon Sanderson ✅ 
+  - "The Way of Kings" by Brandon Sanderson ✅
   - "Mistborn" by Brandon Sanderson ✅
   - "The Hobbit" by J.R.R. Tolkien ✅
 - Verified error handling with non-existent books
@@ -190,7 +190,7 @@ After implementation:
    - Rate limiting and retry with backoff
 
 2. **Google Books API Fixes**:
-   - Multiple query format strategies  
+   - Multiple query format strategies
    - Proper intitle/inauthor parameter usage
    - Comprehensive ASIN extraction methods
 
