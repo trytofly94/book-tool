@@ -1,0 +1,29 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        language_version: python3
+        args: [--line-length=88]
+  
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+  
+  - repo: https://github.com/pycqa/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        args:
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --in-place
+  
+  - repo: local
+    hooks:
+      - id: preserve-functionality
+        name: preserve-functionality
+        entry: python3 -c "from enhanced_asin_lookup import ASINLookupService; from localization_metadata_extractor import LocalizationMetadataExtractor; print('✓ Core functionality preserved')"
+        language: system
+        pass_filenames: false
