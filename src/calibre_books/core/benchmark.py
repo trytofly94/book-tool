@@ -455,7 +455,7 @@ class ASINLookupBenchmark:
     def print_benchmark_comparison(self, comparison: BenchmarkComparison):
         """Print human-readable benchmark comparison."""
         print(f"\n{'='*60}")
-        print(f"BENCHMARK COMPARISON")
+        print("BENCHMARK COMPARISON")
         print(f"{'='*60}")
         print(f"Baseline: {comparison.baseline.test_name}")
         print(f"Optimized: {comparison.optimized.test_name}")

@@ -313,7 +313,7 @@ class ParallelKFXConverter:
         successful = [r for r in results if r["success"]]
         failed = [r for r in results if not r["success"]]
 
-        print(f"\n=== Konvertierungs-Zusammenfassung ===")
+        print("\n=== Konvertierungs-Zusammenfassung ===")
         print(f"Erfolgreich: {len(successful)}")
         print(f"Fehlgeschlagen: {len(failed)}")
         print(
@@ -321,7 +321,7 @@ class ParallelKFXConverter:
         )
 
         if failed:
-            print(f"\nFehlgeschlagene Konvertierungen:")
+            print("\nFehlgeschlagene Konvertierungen:")
             for fail in failed:
                 print(
                     f"  ✗ {os.path.basename(fail['input_path'])}: {fail['error'][:100]}..."
@@ -496,7 +496,7 @@ def main():
             results = converter.parallel_batch_convert(input_dir, dry_run=True)
 
         elif choice == "4":
-            max_workers = input(f"Anzahl parallele Worker (default: 4): ").strip()
+            max_workers = input("Anzahl parallele Worker (default: 4): ").strip()
             if max_workers:
                 converter.max_workers = int(max_workers)
 
@@ -514,7 +514,7 @@ def main():
             if converter.library_path:
                 limit = input("Limit (leer für alle): ").strip()
                 limit = int(limit) if limit else None
-                max_workers = input(f"Anzahl parallele Worker (default: 4): ").strip()
+                max_workers = input("Anzahl parallele Worker (default: 4): ").strip()
                 if max_workers:
                     converter.max_workers = int(max_workers)
 

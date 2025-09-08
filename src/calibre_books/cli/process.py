@@ -161,7 +161,7 @@ def scan(
             if check_asin:
                 with_asin = sum(1 for b in results if b.has_asin)
                 without_asin = len(results) - with_asin
-                console.print(f"\n[cyan]ASIN Status:[/cyan]")
+                console.print("\n[cyan]ASIN Status:[/cyan]")
                 console.print(f"  • With ASIN: {with_asin}")
                 console.print(f"  • Without ASIN: {without_asin}")
 
@@ -341,7 +341,7 @@ def prepare(
             successful = sum(1 for r in results if r.success)
             failed = len(results) - successful
 
-            console.print(f"\n[green]ASIN processing completed:[/green]")
+            console.print("\n[green]ASIN processing completed:[/green]")
             console.print(f"  • Successful: {successful}")
             if failed > 0:
                 console.print(f"  • Failed: {failed}")

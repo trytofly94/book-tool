@@ -144,7 +144,7 @@ def kfx(
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
 
-        console.print(f"[green]KFX conversion completed[/green]")
+        console.print("[green]KFX conversion completed[/green]")
         console.print(f"  Files processed: {len(kfx_files)}")
         console.print(f"  Successful: {successful}")
 
@@ -369,7 +369,7 @@ def batch(
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
 
-        console.print(f"[green]Batch conversion completed[/green]")
+        console.print("[green]Batch conversion completed[/green]")
         console.print(f"  Files processed: {len(files_to_convert)}")
         console.print(f"  Successful: {successful}")
 

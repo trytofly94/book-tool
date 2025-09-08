@@ -68,7 +68,7 @@ def test_single_book(book_path: Path, verbose: bool = True):
         
         # Extract metadata
         metadata = extract_metadata_from_epub(book_path)
-        print(f"Extracted metadata:")
+        print("Extracted metadata:")
         print(f"  Title: {metadata.title}")
         print(f"  Author: {metadata.author}")
         print(f"  ISBN: {metadata.isbn}")
@@ -81,7 +81,7 @@ def test_single_book(book_path: Path, verbose: bool = True):
         )
         
         # Test ASIN lookup by title/author
-        print(f"\n--- Testing Title/Author Lookup ---")
+        print("\n--- Testing Title/Author Lookup ---")
         result = service.lookup_by_title(
             title=metadata.title,
             author=metadata.author,
@@ -93,11 +93,11 @@ def test_single_book(book_path: Path, verbose: bool = True):
             print(f"   Source: {result.source}")
             print(f"   Success: {result.success}")
         else:
-            print(f"❌ No ASIN found by title/author")
+            print("❌ No ASIN found by title/author")
         
         # Test ASIN lookup by ISBN if available
         if metadata.isbn:
-            print(f"\n--- Testing ISBN Lookup ---")
+            print("\n--- Testing ISBN Lookup ---")
             isbn_result = service.lookup_by_isbn(
                 isbn=metadata.isbn,
                 verbose=verbose
@@ -108,10 +108,10 @@ def test_single_book(book_path: Path, verbose: bool = True):
                 print(f"   Source: {isbn_result.source}")
                 print(f"   Success: {isbn_result.success}")
             else:
-                print(f"❌ No ASIN found by ISBN")
+                print("❌ No ASIN found by ISBN")
         
         # Test cache functionality
-        print(f"\n--- Testing Cache ---")
+        print("\n--- Testing Cache ---")
         cache_stats = service.cache_manager.get_stats()
         print(f"Cache stats: {cache_stats}")
         
@@ -157,11 +157,11 @@ def main():
             if result and result.asin:
                 print(f"✅ SUCCESS: Found ASIN {result.asin}")
             else:
-                print(f"❌ No ASIN found")
+                print("❌ No ASIN found")
         else:
             print(f"⚠️  Book not found: {book_name}")
     
-    print(f"\n🏁 ASIN Lookup testing completed!")
+    print("\n🏁 ASIN Lookup testing completed!")
     return 0
 
 

@@ -370,7 +370,7 @@ class CalibreASINAutomation:
                         isbn=isbn, title=title, author=authors, file_path=book_file_path
                     )
                 else:
-                    print(f"  Verwende Standard-Lookup (Datei nicht verfügbar)")
+                    print("  Verwende Standard-Lookup (Datei nicht verfügbar)")
                     # Fallback to standard lookup
                     asin = self.lookup_service.lookup_multiple_sources(
                         isbn=isbn, title=title, author=authors
@@ -380,18 +380,18 @@ class CalibreASINAutomation:
                     asin_updates[book_id] = asin
                     print(f"  ✓ ASIN gefunden: {asin}")
                 else:
-                    print(f"  ✗ Keine ASIN gefunden")
+                    print("  ✗ Keine ASIN gefunden")
             else:
                 print(f"  [DRY RUN] Würde ASIN suchen für: {title}")
 
         # 4. Batch-Update durchführen
         if asin_updates and not dry_run:
             success_count = self.batch_update_asins(asin_updates)
-            print(f"\n=== Zusammenfassung ===")
+            print("\n=== Zusammenfassung ===")
             print(f"ASINs erfolgreich gesetzt: {success_count}")
             print(f"Bücher ohne ASIN: {len(books_without_asin) - success_count}")
         elif dry_run:
-            print(f"\n=== Dry Run Zusammenfassung ===")
+            print("\n=== Dry Run Zusammenfassung ===")
             print(f"Würde {len(books_without_asin)} Bücher verarbeiten")
 
         return asin_updates

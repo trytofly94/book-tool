@@ -92,7 +92,7 @@ def test_comprehensive_asin_lookup():
 
                 results["detailed_results"].append(result)
             else:
-                print(f"  ✗ Failed to extract metadata")
+                print("  ✗ Failed to extract metadata")
                 results["detailed_results"].append(
                     {
                         "file": book_file,
@@ -138,7 +138,7 @@ def test_comprehensive_asin_lookup():
                     print(f"  ✓ ASIN found: {asin}")
                 else:
                     book_result["asin_found"] = None
-                    print(f"  ✗ No valid ASIN found")
+                    print("  ✗ No valid ASIN found")
 
                 # Add small delay between requests
                 time.sleep(1)
@@ -152,7 +152,7 @@ def test_comprehensive_asin_lookup():
     print("FINAL REVIEW RESULTS")
     print(f"{'='*80}")
 
-    print(f"\n📊 SUMMARY STATISTICS:")
+    print("\n📊 SUMMARY STATISTICS:")
     print(f"  Total books processed: {results['total_books']}")
     print(f"  Metadata successfully extracted: {results['metadata_extracted']}")
     print(f"  German books identified: {results['german_books_identified']}")
@@ -166,12 +166,12 @@ def test_comprehensive_asin_lookup():
         results["asin_lookups_successful"] / max(results["asin_lookups_attempted"], 1)
     ) * 100
 
-    print(f"\n📈 SUCCESS RATES:")
+    print("\n📈 SUCCESS RATES:")
     print(f"  Metadata extraction: {success_rate_metadata:.1f}%")
     print(f"  ASIN lookup: {success_rate_asin:.1f}%")
 
     # Show German books identified
-    print(f"\n🇩🇪 GERMAN BOOKS IDENTIFIED:")
+    print("\n🇩🇪 GERMAN BOOKS IDENTIFIED:")
     german_count = 0
     for result in results["detailed_results"]:
         if result.get("is_german", False):
@@ -183,12 +183,12 @@ def test_comprehensive_asin_lookup():
     try:
         with open("/tmp/asin_cache.json", "r") as f:
             cache = json.load(f)
-        print(f"\n💾 CACHE STATUS:")
+        print("\n💾 CACHE STATUS:")
         print(f"  Cached ASINs: {len(cache)}")
         for key, asin in cache.items():
             print(f"    {asin}: {key}")
     except:
-        print(f"\n💾 CACHE STATUS: No cache file found")
+        print("\n💾 CACHE STATUS: No cache file found")
 
     return results
 

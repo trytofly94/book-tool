@@ -231,7 +231,7 @@ def batch(
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
 
-        console.print(f"[green]Batch download completed[/green]")
+        console.print("[green]Batch download completed[/green]")
         console.print(f"  Successful: {successful}")
         if failed > 0:
             console.print(f"  Failed: {failed}")

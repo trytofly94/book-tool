@@ -337,7 +337,7 @@ def export(
                 progress_callback=progress.update,
             )
 
-        console.print(f"[green]Library exported successfully[/green]")
+        console.print("[green]Library exported successfully[/green]")
         console.print(f"  Books exported: {result.book_count}")
         console.print(f"  Export size: {result.export_size_human}")
         console.print(f"  Location: {result.export_path}")
