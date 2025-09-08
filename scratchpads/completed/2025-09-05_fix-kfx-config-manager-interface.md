@@ -52,7 +52,7 @@ class ConfigManager(LoggerMixin):
     def __init__(self, config_path: Optional[Path] = None)
     def get_config(self) -> Dict[str, Any]           # Returns full config dict
     def get_download_config(self) -> Dict[str, Any]   # Returns download section
-    def get_calibre_config(self) -> Dict[str, Any]    # Returns calibre section  
+    def get_calibre_config(self) -> Dict[str, Any]    # Returns calibre section
     def get_asin_config(self) -> Dict[str, Any]       # Returns asin_lookup section
     def get_conversion_config(self) -> Dict[str, Any] # Returns conversion section
     # Missing: get(key, default) method
@@ -103,7 +103,7 @@ From the completed scratchpad (`2025-09-05_calibre-cli-tool-transformation.md`),
 **Recommended Solution**: Modify KFXConverter to use ConfigManager's specialized methods instead of expecting a dictionary interface.
 
 **Why not add `get()` method to ConfigManager?**
-- Adding `get()` would break the designed abstraction 
+- Adding `get()` would break the designed abstraction
 - ConfigManager is intended to provide structured access to configuration sections
 - Adding dict-like interface could lead to future API confusion
 
@@ -148,7 +148,7 @@ From the completed scratchpad (`2025-09-05_calibre-cli-tool-transformation.md`),
 def __init__(self, config: Dict[str, Any]):
     """
     Initialize KFX converter.
-    
+
     Args:
         config: Conversion configuration dictionary
     """
@@ -162,17 +162,17 @@ def __init__(self, config: Dict[str, Any]):
 def __init__(self, config_manager: 'ConfigManager'):
     """
     Initialize KFX converter.
-    
+
     Args:
         config_manager: Configuration manager instance
     """
     super().__init__()
     self.config_manager = config_manager
-    
+
     # Get conversion-specific configuration
     conversion_config = config_manager.get_conversion_config()
     self.max_workers = conversion_config.get('max_workers', 4)
-    
+
     # Store other needed config sections
     self.calibre_config = config_manager.get_calibre_config()
 ```
@@ -193,10 +193,10 @@ def __init__(self, config_manager: 'ConfigManager'):
 ```python
 def test_kfx_converter_initialization_with_config_manager():
     """Test that KFXConverter properly initializes with ConfigManager."""
-    
+
 def test_kfx_converter_handles_missing_config_values():
     """Test default values when configuration keys are missing."""
-    
+
 def test_kfx_converter_validates_config_values():
     """Test validation of configuration values."""
 ```
@@ -205,7 +205,7 @@ def test_kfx_converter_validates_config_values():
 ```python
 def test_kfx_conversion_command_with_default_config():
     """Test full KFX conversion command with default configuration."""
-    
+
 def test_kfx_conversion_command_with_custom_parallel():
     """Test KFX conversion with custom parallel setting."""
 ```
@@ -296,7 +296,7 @@ The original error `'ConfigManager' object has no attribute 'get'` occurred beca
    - Specific GitHub Issue #1 fix verification
    - System requirements checking
    - Book conversion workflows with various error scenarios
-   
+
 2. **Integration Tests** (`tests/integration/test_kfx_conversion_cli.py`): 7 integration tests covering:
    - Complete CLI workflow from command to KFXConverter instantiation
    - Configuration data flow verification

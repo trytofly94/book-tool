@@ -13,7 +13,7 @@ Implementierung einer File-Validation-Funktion, die korrupte oder fehlerhaft ben
 - [ ] Integration in bestehende Prozesse: `book-tool process --validate-first ./books/`
 - [ ] Format-Verifizierung über `file` command oder magic bytes
 - [ ] EPUB-Struktur-Validierung (Check für required EPUB components)
-- [ ] MOBI-Header-Validierung 
+- [ ] MOBI-Header-Validierung
 - [ ] Extension/Content-Mismatch-Erkennung
 - [ ] Basic Corruption Detection
 - [ ] Detaillierte Ausgabe mit Status für jede Datei
@@ -29,10 +29,10 @@ Implementierung einer File-Validation-Funktion, die korrupte oder fehlerhaft ben
 ### Test-Daten verfügbar
 In `/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/` sind die exakt in Issue #17 beschriebenen problematischen Dateien verfügbar:
 
-1. **`sanderson_sturmlicht1_weg-der-koenige.epub`**: 
+1. **`sanderson_sturmlicht1_weg-der-koenige.epub`**:
    - Tatsächlich Microsoft Word Document (.doc)
    - `file` output: `Composite Document File V2 Document, Little Endian`
-   
+
 2. **`sanderson_skyward1_ruf-der-sterne.epub`**:
    - Generic ZIP archive statt EPUB
    - `file` output: `Zip archive data, at least v2.0 to extract`
@@ -54,7 +54,7 @@ Das Projekt ist ein CLI-Tool basierend auf dem Python Ecosystem mit folgenden re
 - [ ] Erstelle `file_validator.py` Modul mit folgenden Funktionen:
   - `validate_file_format()` - Magic bytes / file command integration
   - `validate_epub_structure()` - EPUB-spezifische Validierung
-  - `validate_mobi_structure()` - MOBI-spezifische Validierung  
+  - `validate_mobi_structure()` - MOBI-spezifische Validierung
   - `detect_extension_mismatch()` - Extension vs. Content check
   - `ValidationResult` dataclass für strukturierte Ergebnisse
 
@@ -85,7 +85,7 @@ Das Projekt ist ein CLI-Tool basierend auf dem Python Ecosystem mit folgenden re
 - [ ] Basic XML validity check für container.xml
 - [ ] Error categorization (corrupt ZIP vs. missing required files)
 
-### Phase 6: Output & Reporting System  
+### Phase 6: Output & Reporting System
 - [ ] Implementiere strukturiertes ValidationResult output:
   ```
   ✓ sanderson_elantris.epub - Valid EPUB
@@ -145,7 +145,7 @@ Alle geplanten Features wurden vollständig implementiert und getestet:
 
 3. ✅ **CLI Interface komplett integriert** (`src/calibre_books/cli/validate.py`):
    - `book-tool validate scan` - Directory validation
-   - `book-tool validate file` - Single file validation  
+   - `book-tool validate file` - Single file validation
    - `book-tool validate clear-cache` - Cache management
    - Rich console output mit Tables und Progress bars
    - Quiet mode und Detail options
@@ -215,13 +215,13 @@ Die **Issue #17 Implementation** wurde erfolgreich abgeschlossen durch den Creat
 
 ### Implementierte Kernkomponenten:
 1. **File Validation Utilities** (`src/calibre_books/utils/validation.py`) - 816 Zeilen
-2. **File Validator Orchestrator** (`src/calibre_books/core/file_validator.py`) - 402 Zeilen  
+2. **File Validator Orchestrator** (`src/calibre_books/core/file_validator.py`) - 402 Zeilen
 3. **CLI Validate Commands** (`src/calibre_books/cli/validate.py`) - 445 Zeilen
 4. **Integration in Process Commands** - --validate-first Option
 5. **Comprehensive Test Suite** (`tests/unit/test_file_validation.py`) - 655 Zeilen
 
 ### Erfolgreiches Real-World Testing:
-- ✅ Korrupte Datei Detection: `sanderson_sturmlicht1_weg-der-koenige.epub` (MS Word Document) 
+- ✅ Korrupte Datei Detection: `sanderson_sturmlicht1_weg-der-koenige.epub` (MS Word Document)
 - ✅ Gültige EPUB Validation: `sanderson_skyward1_ruf-der-sterne.epub`
 - ✅ CLI Integration: `book-tool validate scan` und `--validate-first` funktionieren perfekt
 

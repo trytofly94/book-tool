@@ -16,7 +16,7 @@ A professional CLI tool for processing existing eBook files, adding ASIN metadat
 
 ## Prerequisites
 
-- [Python 3.9+](https://www.python.org/) 
+- [Python 3.9+](https://www.python.org/)
 - [Calibre](https://calibre-ebook.com/) with CLI tools in PATH
 - [Chrome Browser](https://www.google.com/chrome/) (for web scraping features)
 
@@ -186,7 +186,7 @@ Recent comprehensive integration testing demonstrated excellent system reliabili
 
 - **100% Success Rate**: 11/11 test cases passed including Brandon Sanderson collection
 - **Multi-Language Support**: Perfect handling of German titles with umlauts (ö, ä, ü) and Unicode characters
-- **Performance Optimization**: 
+- **Performance Optimization**:
   - Average first lookup: 5.13 seconds
   - Cached lookup: 0.65 seconds (20x performance improvement)
   - Intelligent rate limiting with graceful 2s backoff
@@ -195,7 +195,7 @@ Recent comprehensive integration testing demonstrated excellent system reliabili
 
 ### Tested Book Collection
 - Stormlight Archive series (German: Sturmlicht-Chroniken)
-- Mistborn trilogy (German: Nebel-Trilogie) 
+- Mistborn trilogy (German: Nebel-Trilogie)
 - Skyward series
 - Standalone titles including international variations
 

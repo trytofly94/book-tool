@@ -35,16 +35,16 @@ print_error() {
 
 check_dependencies() {
     print_step "Überprüfe Abhängigkeiten..."
-    
+
     local deps=("librarian" "calibre" "ebook-convert" "ebook-meta" "python3")
     local missing=()
-    
+
     for dep in "${deps[@]}"; do
         if ! command -v "$dep" &> /dev/null; then
             missing+=("$dep")
         fi
     done
-    
+
     if [ ${#missing[@]} -eq 0 ]; then
         print_success "Alle Abhängigkeiten gefunden"
         return 0
@@ -60,13 +60,13 @@ check_dependencies() {
 
 download_books() {
     print_step "Starte Book Download..."
-    
+
     echo "Verfügbare Serien:"
     echo "1. Brandon Sanderson - Sturmlicht Chroniken"
     echo "2. Eigene Eingabe"
-    
+
     read -p "Wählen Sie (1-2): " choice
-    
+
     case $choice in
         1)
             author="Brandon Sanderson"
@@ -84,9 +84,9 @@ download_books() {
             return 1
             ;;
     esac
-    
+
     print_step "Lade herunter: $author - $series ($format)"
-    
+
     if python3 "$SCRIPT_DIR/auto_download_books.py" "$author" "$series" "$format"; then
         print_success "Download abgeschlossen"
         return 0
@@ -98,12 +98,12 @@ download_books() {
 
 prepare_for_goodreads() {
     print_step "Bereite Bücher für Goodreads vor..."
-    
+
     echo "HINWEIS: Für die Goodreads-Integration benötigen Sie Amazon ASINs."
     echo "Diese finden Sie auf den Amazon Kindle Store Seiten der Bücher."
     echo ""
     read -p "Möchten Sie fortfahren? (j/n): " proceed
-    
+
     if [[ $proceed =~ ^[Jj]$ ]]; then
         if python3 "$SCRIPT_DIR/calibre_goodreads_prep.py"; then
             print_success "Goodreads-Vorbereitung abgeschlossen"
@@ -120,10 +120,10 @@ prepare_for_goodreads() {
 
 show_summary() {
     print_step "Zusammenfassung"
-    
+
     echo "Dateien in $CALIBRE_INGEST_DIR:"
     ls -lh "$CALIBRE_INGEST_DIR"/*.{mobi,epub,azw3} 2>/dev/null || echo "Keine eBook-Dateien gefunden"
-    
+
     echo ""
     echo "Nächste Schritte:"
     echo "1. Importiere Bücher in Calibre"
@@ -133,15 +133,15 @@ show_summary() {
 
 main() {
     print_header
-    
+
     # Überprüfe Abhängigkeiten
     if ! check_dependencies; then
         exit 1
     fi
-    
+
     # Erstelle Verzeichnis falls nötig
     mkdir -p "$CALIBRE_INGEST_DIR"
-    
+
     while true; do
         echo ""
         echo "Was möchten Sie tun?"
@@ -149,9 +149,9 @@ main() {
         echo "2. Für Goodreads vorbereiten"
         echo "3. Zusammenfassung anzeigen"
         echo "4. Beenden"
-        
+
         read -p "Wählen Sie (1-4): " action
-        
+
         case $action in
             1)
                 download_books
