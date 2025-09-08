@@ -41,20 +41,16 @@ class CalibreError(Exception):
     """Base exception for Calibre operations."""
 
 
-
 class CalibreNotFoundError(CalibreError):
     """Calibre CLI tools not found."""
-
 
 
 class LibraryNotFoundError(CalibreError):
     """Calibre library not found or inaccessible."""
 
 
-
 class MetadataError(CalibreError):
     """Metadata operation failed."""
-
 
 
 class CalibreDB(LoggerMixin):

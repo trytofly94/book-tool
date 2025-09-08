@@ -2,7 +2,6 @@
 Unit tests for validation utilities.
 """
 
-
 from calibre_books.utils.validation import (
     validate_asin,
     validate_isbn,
