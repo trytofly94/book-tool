@@ -75,7 +75,7 @@ class ParallelKFXConverter:
             
             if result.returncode == 0:
                 return 'KFX Output' in result.stdout or 'KFXOutput' in result.stdout
-        except:
+        except subprocess.SubprocessError:
             pass
         
         # Alternative: Prüfe Calibre Plugin-Verzeichnis

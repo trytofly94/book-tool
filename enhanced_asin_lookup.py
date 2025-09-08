@@ -56,7 +56,7 @@ class ASINLookupService:
             try:
                 with open(self.cache_file, 'r') as f:
                     return json.load(f)
-            except:
+            except (json.JSONDecodeError, IOError):
                 pass
         return {}
     

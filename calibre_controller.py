@@ -1,4 +1,7 @@
 
+import subprocess
+
+
 class CalibreController:
     """
     Python-Wrapper für Calibre-Operationen

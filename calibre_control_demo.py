@@ -48,7 +48,7 @@ def demonstrate_calibredb():
         result = subprocess.run(['calibredb', 'list_categories'], capture_output=True, text=True)
         print("Verfügbare Kategorien in der Bibliothek:")
         print(result.stdout)
-    except:
+    except subprocess.SubprocessError:
         print("Keine Standard-Bibliothek gefunden")
     
     # Beispiele für calibredb Befehle

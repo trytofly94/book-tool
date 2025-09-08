@@ -545,7 +545,7 @@ class LocalizationMetadataExtractor:
             file_size = os.path.getsize(file_path)
             if file_size < 1024:  # Less than 1KB is suspicious for an ebook
                 return True
-        except:
+        except OSError:
             pass
         
         return False
