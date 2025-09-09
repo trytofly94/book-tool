@@ -61,6 +61,17 @@ def asin(ctx: click.Context) -> None:
     is_flag=True,
     help="Enable verbose output for debugging ASIN lookup issues.",
 )
+@click.option(
+    "--fuzzy/--no-fuzzy",
+    default=True,
+    help="Enable fuzzy matching and title variations for improved success rate.",
+)
+@click.option(
+    "--fuzzy-threshold",
+    type=int,
+    default=80,
+    help="Fuzzy matching similarity threshold (0-100, default: 80).",
+)
 @click.pass_context
 def lookup(
     ctx: click.Context,
@@ -70,6 +81,8 @@ def lookup(
     sources: tuple[str, ...],
     cache: bool,
     verbose: bool,
+    fuzzy: bool,
+    fuzzy_threshold: int,
 ) -> None:
     """
     Look up ASIN for a specific book.
@@ -78,6 +91,7 @@ def lookup(
         book-tool asin lookup --book "The Way of Kings" --author "Brandon Sanderson"
         book-tool asin lookup --isbn "9780765326355"
         book-tool asin lookup --book "Dune" --sources amazon goodreads
+        book-tool asin lookup --book "Mistborn" --author "Sanderson" --fuzzy --verbose
     """
     config = ctx.obj["config"]
     dry_run = ctx.obj["dry_run"]
@@ -88,6 +102,11 @@ def lookup(
 
     try:
         lookup_service = ASINLookupService(config)
+
+        # Configure enhanced search features (Issue #55)
+        lookup_service.enable_series_variations = fuzzy
+        lookup_service.enable_fuzzy_matching = fuzzy
+        lookup_service.fuzzy_threshold = fuzzy_threshold
 
         if dry_run:
             console.print("[yellow]DRY RUN: Would lookup ASIN for:[/yellow]")
@@ -109,6 +128,14 @@ def lookup(
             console.print(
                 "[yellow]Verbose mode enabled - showing detailed lookup information[/yellow]"
             )
+            if fuzzy:
+                console.print(
+                    f"[cyan]Enhanced search enabled - fuzzy matching threshold: {fuzzy_threshold}%[/cyan]"
+                )
+            else:
+                console.print(
+                    "[dim]Enhanced search disabled - using exact matching only[/dim]"
+                )
 
         with ProgressManager("Looking up ASIN") as progress:
             if isbn:
@@ -271,7 +298,7 @@ def batch_update(
         # Update Calibre library with new ASINs
         updated_count = calibre.update_asins(results)
 
-        console.print(f"[green]Batch ASIN update completed[/green]")
+        console.print("[green]Batch ASIN update completed[/green]")
         console.print(f"  Books processed: {len(books_to_process)}")
         console.print(f"  ASINs found: {sum(1 for r in results if r.asin)}")
         console.print(f"  Library updated: {updated_count}")
