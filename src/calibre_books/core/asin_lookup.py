@@ -1731,3 +1731,40 @@ class ASINLookupService(LoggerMixin):
 
         self.logger.debug("OpenLibrary: No ASIN found")
         return None
+
+    def close(self):
+        """
+        Close ASIN lookup service and cleanup resources.
+
+        This method performs proper cleanup of all resources used by the service,
+        including cache manager connections and thread locks. It is safe to call
+        multiple times (idempotent).
+        """
+        if hasattr(self, "_closed") and self._closed:
+            # Already closed, nothing to do
+            self.logger.debug("ASINLookupService already closed")
+            return
+
+        self.logger.debug("Closing ASIN lookup service...")
+
+        try:
+            # Close cache manager if it has a close method
+            if hasattr(self.cache_manager, "close"):
+                self.logger.debug("Closing cache manager...")
+                self.cache_manager.close()
+
+            # Clear thread lock reference (GC will handle the cleanup)
+            if hasattr(self, "_cache_lock"):
+                # We don't explicitly "close" a Lock object, just clear the reference
+                # The threading.Lock will be garbage collected automatically
+                self._cache_lock = None
+                self.logger.debug("Cleared cache lock reference")
+
+            # Mark as closed to prevent double cleanup
+            self._closed = True
+            self.logger.info("ASIN lookup service closed successfully")
+
+        except Exception as e:
+            self.logger.error(f"Error during ASIN lookup service cleanup: {e}")
+            # Still mark as closed even if there were errors
+            self._closed = True
