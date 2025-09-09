@@ -494,16 +494,20 @@ def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
             return None
 
         # ZIP-based formats (EPUB, DOCX, XLSX, PPTX) - CONSOLIDATED
-        if header.startswith(b"PK\x03\x04"):
+        # ZIP files can start with PK\x03\x04 (local file header) or PK\x05\x06 (empty archive)
+        if header.startswith(b"PK\x03\x04") or header.startswith(b"PK\x05\x06"):
             try:
                 with zipfile.ZipFile(file_path, "r") as zf:
                     namelist = zf.namelist()
 
                     # Check for EPUB first (has specific mimetype)
                     if "mimetype" in namelist:
-                        mimetype = zf.read("mimetype").decode("utf-8").strip()
-                        if mimetype == "application/epub+zip":
-                            return "epub"
+                        try:
+                            mimetype = zf.read("mimetype").decode("utf-8").strip()
+                            if mimetype == "application/epub+zip":
+                                return "epub"
+                        except (UnicodeDecodeError, KeyError):
+                            pass  # Continue checking other formats
 
                     # Check for Office Open XML formats
                     if "[Content_Types].xml" in namelist:
