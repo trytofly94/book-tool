@@ -8,6 +8,7 @@ import os
 import sys
 import glob
 import logging
+import argparse
 from datetime import datetime
 
 # Import our modules
@@ -21,6 +22,24 @@ except ImportError:
     from enhanced_asin_lookup import ASINLookupService
     from calibre_asin_automation import CalibreASINAutomation
 
+# Import test helpers
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+try:
+    from calibre_books.utils.test_helpers import (
+        get_test_book_path,
+        add_book_path_argument,
+    )
+except ImportError:
+    # If new utils not available, create a dummy implementation for fallback
+    def get_test_book_path(cli_args=None):
+        from pathlib import Path
+
+        return Path("/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline")
+
+    def add_book_path_argument(parser):
+        parser.add_argument("--book-path", help="Path to book directory")
+
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -31,8 +50,13 @@ logger = logging.getLogger(__name__)
 class LocalizationTestSuite:
     """Comprehensive test suite for localization ASIN lookup functionality"""
 
-    def __init__(self):
-        self.test_directory = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+    def __init__(self, test_directory=None):
+        if test_directory:
+            self.test_directory = test_directory
+        else:
+            self.test_directory = (
+                "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+            )
         self.extractor = LocalizationMetadataExtractor()
         self.lookup_service = ASINLookupService()
         self.automation = CalibreASINAutomation()
@@ -165,7 +189,7 @@ class LocalizationTestSuite:
         """Test edge cases and known problematic files"""
         logger.info("=== Testing Edge Cases ===")
 
-        pipeline_base = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+        pipeline_base = self.test_directory
         edge_cases = [
             # Known corrupted file
             f"{pipeline_base}/sanderson_sturmlicht1_weg-der-koenige.epub",
@@ -206,7 +230,7 @@ class LocalizationTestSuite:
         logger.info("=== Testing Search Terms Generation ===")
 
         # Test with a few representative files
-        pipeline_base = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+        pipeline_base = self.test_directory
         test_files = [
             book_files[0] if book_files else None,  # First book
             f"{pipeline_base}/sanderson_mistborn1_kinder-des-nebels.epub",
@@ -469,16 +493,51 @@ class LocalizationTestSuite:
         logger.info("=== New Language Support Test Complete ===")
 
 
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Comprehensive Testing Suite for Issue #19/#23 - Localization ASIN Lookup.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  # Use default book directory
+  python test_localization_comprehensive.py
+
+  # Use custom book directory
+  python test_localization_comprehensive.py --book-path /custom/path/to/books
+
+  # Use environment variable
+  export CALIBRE_BOOKS_TEST_PATH=/custom/path/to/books
+  python test_localization_comprehensive.py
+""",
+    )
+
+    add_book_path_argument(parser)
+
+    return parser.parse_args()
+
+
 def main():
     """Main test execution"""
+    # Parse command line arguments
+    args = parse_arguments()
+
     print("=" * 80)
     print("COMPREHENSIVE LOCALIZATION ASIN LOOKUP TEST SUITE")
     print("Issue #19 - Testing German book localization")
     print("Issue #23 - Testing Japanese, Portuguese, Dutch language support")
     print("=" * 80)
 
+    # Get book directory path using the new resolution function
+    try:
+        test_directory = str(get_test_book_path(cli_args=args))
+        print(f"Using book directory: {test_directory}")
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Book directory resolution failed: {e}")
+        return 1
+
     # Run the test suite
-    test_suite = LocalizationTestSuite()
+    test_suite = LocalizationTestSuite(test_directory)
     results = test_suite.run_comprehensive_test(max_asin_tests=3)  # Limit ASIN tests
 
     return results
