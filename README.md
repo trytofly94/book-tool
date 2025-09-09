@@ -238,14 +238,62 @@ This project uses an agent-based development workflow. See `CLAUDE.md` for techn
 3. **Conversion errors**: Check system requirements with `book-tool convert kfx --check-requirements`
 4. **Wrong plugin version**: Uninstall and reinstall the official KFX Output plugin by jhowell
 
-### Test Directory
+### Test Directory Configuration
 
-For testing KFX functionality, you can use the test directory:
+The test scripts support flexible book directory configuration for different environments:
+
+#### Default Test Directory
+```
+/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline
+```
+
+#### Custom Test Paths
+
+You can configure custom book directories for testing using three methods:
+
+**1. CLI Argument (highest priority):**
+```sh
+# Run tests with custom book directory
+python test_real_availability_check.py --book-path /path/to/your/books
+python test_asin_lookup_real_books.py --book-path /custom/library
+```
+
+**2. Environment Variable:**
+```sh
+# Set globally for all test scripts
+export CALIBRE_BOOKS_TEST_PATH=/path/to/your/books
+python test_real_availability_check.py
+```
+
+**3. Default Fallback:**
+```sh
+# Uses default path if no configuration provided
+python test_real_availability_check.py
+```
+
+#### Available Test Scripts with Book Path Support
+- `test_real_availability_check.py` - Real-world ASIN lookup validation
+- `test_asin_lookup_real_books.py` - Comprehensive ASIN testing
+- `test_comprehensive_review.py` - Complete functionality testing
+- `test_localization_comprehensive.py` - Multi-language support testing
+- `test_issue_23_language_validation.py` - Language validation testing
+
+#### Help and Examples
+```sh
+# View available options for any test script
+python test_real_availability_check.py --help
+
+# Example output shows usage patterns:
+# python test_script.py --book-path /custom/path/to/books
+# export CALIBRE_BOOKS_TEST_PATH=/custom/path/to/books
+```
+
+### Legacy Test Directory
+
+For testing KFX functionality, the legacy test directory is:
 ```
 /Volumes/Entertainment/Bücher/Calibre-Ingest
 ```
-
-This directory is configured for local validation of KFX conversion functionality.
 
 ### Support
 
