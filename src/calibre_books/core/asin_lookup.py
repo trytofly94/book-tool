@@ -455,35 +455,50 @@ class ASINLookupService(LoggerMixin):
                 asin_found = None
                 variation_used = None
 
-                # Try each title variation with each author variation
+                # Performance optimization: Try original title/author first, then variations
+                title_author_combinations = []
+
+                # Always try original combination first
+                title_author_combinations.append((title, author))
+
+                # Then add variations (skip if original already in list)
                 for title_var in title_variations:
                     for author_var in author_variations:
-                        try:
-                            if verbose and (title_var != title or author_var != author):
-                                self.logger.info(
-                                    f"ASIN lookup: Trying {method_name} variation - Title: '{title_var}', Author: '{author_var}'"
-                                )
+                        combo = (title_var, author_var)
+                        if combo not in title_author_combinations:
+                            title_author_combinations.append(combo)
 
-                            # Call the appropriate method based on method name
-                            if method_name == "amazon-search":
-                                asin_found = method_func(title_var, author_var, verbose)
-                            else:
-                                asin_found = method_func(
-                                    None, title_var, author_var, verbose
-                                )
+                # Try each title/author combination
+                for title_var, author_var in title_author_combinations:
+                    try:
+                        # Log variation attempts (but not the original)
+                        if verbose and (title_var != title or author_var != author):
+                            self.logger.info(
+                                f"ASIN lookup: Trying {method_name} variation - Title: '{title_var}', Author: '{author_var}'"
+                            )
 
-                            if asin_found and self.validate_asin(asin_found):
+                        # Call the appropriate method based on method name
+                        if method_name == "amazon-search":
+                            asin_found = method_func(title_var, author_var, verbose)
+                        else:
+                            asin_found = method_func(
+                                None, title_var, author_var, verbose
+                            )
+
+                        if asin_found and self.validate_asin(asin_found):
+                            # Only mark as variation if it's not the original
+                            if title_var != title or author_var != author:
                                 variation_used = (
                                     f"Title: '{title_var}', Author: '{author_var}'"
                                 )
-                                break
+                            break
 
-                        except Exception as var_e:
-                            if verbose:
-                                self.logger.debug(
-                                    f"Variation failed for {method_name}: {var_e}"
-                                )
-                            continue
+                    except Exception as var_e:
+                        if verbose:
+                            self.logger.debug(
+                                f"Variation failed for {method_name}: {var_e}"
+                            )
+                        continue
 
                     if asin_found:
                         break
