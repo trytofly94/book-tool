@@ -45,9 +45,13 @@ class ASINLookupService(LoggerMixin):
         # Get ASIN lookup specific configuration with error handling
         try:
             asin_config = config_manager.get_asin_config()
-            self.cache_path = Path(
-                asin_config.get("cache_path", "~/.book-tool/asin_cache.json")
-            ).expanduser()
+            cache_path_config = asin_config.get(
+                "cache_path", "~/.book-tool/asin_cache.db"
+            )
+            # Ensure SQLite cache uses .db extension
+            if cache_path_config.endswith(".json"):
+                cache_path_config = cache_path_config.replace(".json", ".db")
+            self.cache_path = Path(cache_path_config).expanduser()
             self.sources = asin_config.get(
                 "sources", ["amazon", "goodreads", "openlibrary"]
             )
@@ -58,7 +62,7 @@ class ASINLookupService(LoggerMixin):
             )
         except Exception as e:
             self.logger.warning(f"Failed to load ASIN config, using defaults: {e}")
-            self.cache_path = Path("~/.book-tool/asin_cache.json").expanduser()
+            self.cache_path = Path("~/.book-tool/asin_cache.db").expanduser()
             self.sources = ["amazon", "goodreads", "openlibrary"]
             self.rate_limit = 2.0
 
@@ -66,8 +70,10 @@ class ASINLookupService(LoggerMixin):
             f"Initialized ASIN lookup service with sources: {self.sources}"
         )
 
-        # Initialize cache manager
-        self.cache_manager = CacheManager(self.cache_path)
+        # Initialize cache manager with SQLite backend
+        from .cache import SQLiteCacheManager
+
+        self.cache_manager = SQLiteCacheManager(self.cache_path)
 
         # User agents for web scraping - updated for 2025
         self.user_agents = [
@@ -1407,96 +1413,3 @@ class ASINLookupService(LoggerMixin):
 
         self.logger.debug("OpenLibrary: No ASIN found")
         return None
-
-
-class CacheManager:
-    """Manages ASIN lookup cache."""
-
-    def __init__(self, cache_path: Path):
-        self.cache_path = cache_path
-        self.cache_data = {}
-        self._cache_lock = threading.Lock()
-        self._load_cache()
-
-    def _load_cache(self):
-        """Load cache from file."""
-        if self.cache_path.exists():
-            try:
-                with open(self.cache_path, "r") as f:
-                    self.cache_data = json.load(f)
-            except Exception:
-                self.cache_data = {}
-        else:
-            self.cache_data = {}
-            # Ensure cache directory exists
-            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-
-    def _save_cache(self):
-        """Save cache to file."""
-        try:
-            with open(self.cache_path, "w") as f:
-                json.dump(self.cache_data, f, indent=2)
-        except Exception:
-            pass  # Ignore cache save errors
-
-    def get_cached_asin(self, cache_key: str) -> Optional[str]:
-        """Get cached ASIN for key."""
-        with self._cache_lock:
-            return self.cache_data.get(cache_key)
-
-    def cache_asin(self, cache_key: str, asin: str):
-        """Cache an ASIN."""
-        with self._cache_lock:
-            self.cache_data[cache_key] = asin
-            self._save_cache()
-
-    def get_stats(self):
-        """Get cache statistics."""
-        from dataclasses import dataclass
-        from datetime import datetime
-
-        @dataclass
-        class Stats:
-            total_entries: int = 0
-            hit_rate: float = 0.0
-            size_human: str = "0 B"
-            last_updated: datetime = datetime.now()
-
-        with self._cache_lock:
-            total_entries = len(self.cache_data)
-
-            # Calculate cache file size
-            if self.cache_path.exists():
-                size_bytes = self.cache_path.stat().st_size
-                last_updated = datetime.fromtimestamp(self.cache_path.stat().st_mtime)
-            else:
-                size_bytes = 0
-                last_updated = datetime.now()
-
-            # Human readable size
-            for unit in ["B", "KB", "MB", "GB"]:
-                if size_bytes < 1024.0:
-                    size_human = f"{size_bytes:.1f} {unit}"
-                    break
-                size_bytes /= 1024.0
-            else:
-                size_human = f"{size_bytes:.1f} TB"
-
-        return Stats(
-            total_entries=total_entries,
-            hit_rate=0.0,  # Would need to track hits/misses for real calculation
-            size_human=size_human,
-            last_updated=last_updated,
-        )
-
-    def clear(self):
-        """Clear all cached entries."""
-        with self._cache_lock:
-            self.cache_data = {}
-            self._save_cache()
-
-    def cleanup_expired(self) -> int:
-        """Remove expired cache entries."""
-        # For now, we don't implement expiration
-        # Could be added later with timestamp tracking
-        return 0
