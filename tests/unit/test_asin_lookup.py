@@ -575,6 +575,76 @@ class TestASINLookupService:
                 assert any("Starting ASIN lookup" in desc for desc in progress_calls)
                 assert any("Trying amazon-search" in desc for desc in progress_calls)
 
+    def test_close_method_functionality(self):
+        """Test close() method for proper resource cleanup."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_path = Path(temp_dir) / "test_cache.db"
+            config = self.test_config.copy()
+            config["cache_path"] = str(cache_path)
+            config["cache_backend"] = "sqlite"
+
+            service = ASINLookupService(self.create_mock_config_manager(config))
+
+            # Verify service is properly initialized
+            assert hasattr(service, "cache_manager")
+            assert hasattr(service, "_cache_lock")
+            assert not hasattr(service, "_closed")
+
+            # Close the service
+            service.close()
+
+            # Verify close() marks service as closed
+            assert hasattr(service, "_closed")
+            assert service._closed is True
+
+            # Verify cache lock is cleared
+            assert service._cache_lock is None
+
+    def test_close_method_idempotent(self):
+        """Test that close() can be called multiple times safely."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_path = Path(temp_dir) / "test_cache.db"
+            config = self.test_config.copy()
+            config["cache_path"] = str(cache_path)
+            config["cache_backend"] = "sqlite"
+
+            service = ASINLookupService(self.create_mock_config_manager(config))
+
+            # Call close multiple times - should not raise errors
+            service.close()
+            service.close()
+            service.close()
+
+            # Verify still properly closed
+            assert service._closed is True
+            assert service._cache_lock is None
+
+    def test_close_method_after_lookups(self):
+        """Test close() after performing actual lookups."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_path = Path(temp_dir) / "test_cache.db"
+            config = self.test_config.copy()
+            config["cache_path"] = str(cache_path)
+            config["cache_backend"] = "sqlite"
+
+            service = ASINLookupService(self.create_mock_config_manager(config))
+
+            # Pre-populate cache for predictable test
+            cache_key = "test book_test author"
+            service.cache_manager.cache_asin(cache_key, "TEST123", "test-source")
+
+            # Perform a lookup
+            result = service.lookup_by_title("Test Book", "Test Author")
+            assert result.success is True
+            assert result.asin == "TEST123"
+
+            # Close after using the service
+            service.close()
+
+            # Verify proper closure
+            assert service._closed is True
+            assert service._cache_lock is None
+
 
 class TestSQLiteCacheManager:
     """Test SQLiteCacheManager functionality."""
