@@ -4,7 +4,8 @@ Unit tests for CLI functionality.
 
 from click.testing import CliRunner
 
-from calibre_books.cli.main import main
+from calibre_books.cli.main import main, cli_entry_point
+from calibre_books.cli.__main__ import main as main_entry
 
 
 class TestCLIEntryPoint:
@@ -74,3 +75,19 @@ class TestCommandGroups:
 
         assert result.exit_code == 0
         assert "Manage configuration settings" in result.output
+
+
+class TestMainModuleExecution:
+    """Test the new __main__.py module execution functionality."""
+
+    def test_main_entry_function(self):
+        """Test that __main__.main() function works correctly."""
+        # Since main_entry just calls cli_entry_point, we can test it indirectly
+        # by ensuring the import works and the function exists
+        assert callable(main_entry)
+        assert main_entry.__name__ == "main"
+
+    def test_cli_entry_point_function(self):
+        """Test cli_entry_point function exists and is callable."""
+        assert callable(cli_entry_point)
+        assert cli_entry_point.__name__ == "cli_entry_point"
