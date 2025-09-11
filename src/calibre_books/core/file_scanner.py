@@ -168,7 +168,10 @@ class FileScanner(LoggerMixin):
         """
         Extract basic metadata from filename.
 
-        Tries to parse author and title from common filename patterns.
+        Tries to parse author and title from common filename patterns:
+        - "Author - Title"
+        - "Title by Author"
+        - "author_title" (underscore pattern)
         """
         # Remove extension
         name_without_ext = Path(filename).stem
@@ -182,9 +185,103 @@ class FileScanner(LoggerMixin):
             parts = name_without_ext.split(" by ", 1)
             if len(parts) == 2:
                 return BookMetadata(title=parts[0].strip(), author=parts[1].strip())
+        elif "_" in name_without_ext:
+            # Handle underscore patterns like "author_title" or "author_series#_title"
+            parts = name_without_ext.split("_", 1)
+            if len(parts) == 2:
+                author_part = parts[0].strip()
+                title_part = parts[1].strip()
+
+                # Expand known author abbreviations
+                expanded_author = self._expand_author_name(author_part)
+
+                # Clean up title part (replace underscores with spaces, handle special cases)
+                cleaned_title = self._clean_title(title_part)
+
+                return BookMetadata(title=cleaned_title, author=expanded_author)
 
         # Default: use filename as title
         return BookMetadata(title=name_without_ext, author="Unknown")
+
+    def _expand_author_name(self, author_short: str) -> str:
+        """
+        Expand author abbreviations to full names.
+
+        Args:
+            author_short: Short author name (e.g., 'sanderson')
+
+        Returns:
+            Full author name or original if no mapping found
+        """
+        # Known author name mappings
+        author_mappings = {
+            "sanderson": "Brandon Sanderson",
+            "tolkien": "J.R.R. Tolkien",
+            "rowling": "J.K. Rowling",
+            "martin": "George R.R. Martin",
+            "jordan": "Robert Jordan",
+            "hobb": "Robin Hobb",
+            "lynch": "Scott Lynch",
+            "pratchett": "Terry Pratchett",
+            "gaiman": "Neil Gaiman",
+            "asimov": "Isaac Asimov",
+            "herbert": "Frank Herbert",
+            "card": "Orson Scott Card",
+            "goodkind": "Terry Goodkind",
+            "brooks": "Terry Brooks",
+            "butcher": "Jim Butcher",
+        }
+
+        # Return mapped name or capitalize original
+        mapped_name = author_mappings.get(author_short.lower())
+        if mapped_name:
+            return mapped_name
+        else:
+            # Capitalize each word in the original
+            return " ".join(
+                word.capitalize() for word in author_short.replace("_", " ").split()
+            )
+
+    def _clean_title(self, title_raw: str) -> str:
+        """
+        Clean up title from filename patterns.
+
+        Args:
+            title_raw: Raw title from filename
+
+        Returns:
+            Cleaned and formatted title
+        """
+        # Replace underscores with spaces
+        title = title_raw.replace("_", " ")
+
+        # Handle special patterns like "mistborn1" -> "Mistborn 1"
+        # Look for number patterns
+        import re
+
+        # Pattern: word+number -> "word number"
+        title = re.sub(r"([a-zA-Z])(\d+)", r"\1 \2", title)
+
+        # Pattern: number+word -> "number word"
+        title = re.sub(r"(\d+)([a-zA-Z])", r"\1 \2", title)
+
+        # Handle hyphens - keep them but ensure proper spacing
+        title = re.sub(r"\s*-\s*", " - ", title)
+
+        # Capitalize first letter of each major word
+        # Split by spaces and hyphens for proper capitalization
+        words = []
+        for part in title.split():
+            if "-" in part:
+                # Handle hyphenated words
+                hyphen_parts = part.split("-")
+                capitalized_parts = [p.capitalize() if p else "" for p in hyphen_parts]
+                words.append("-".join(capitalized_parts))
+            else:
+                # Regular word capitalization
+                words.append(part.capitalize())
+
+        return " ".join(words)
 
     def _extract_metadata_from_file(self, file_path: Path) -> Optional[Dict[str, Any]]:
         """
