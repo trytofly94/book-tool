@@ -183,6 +183,7 @@ src/calibre_books/cli/
 
 ## Ressourcen & Referenzen
 - **GitHub Issue**: #81 - Fix RuntimeWarning in CLI module execution
+- **Pull Request**: #82 - https://github.com/trytofly94/book-tool/pull/82
 - **Test Environment**: `/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline`
 - **Python Documentation**: [Modules - Executing modules as scripts](https://docs.python.org/3/tutorial/modules.html#executing-modules-as-scripts)
 - **Related Scratchpad**: `2025-09-07_pip-installable-cli-package.md` (CLI structure setup)
@@ -202,5 +203,6 @@ src/calibre_books/cli/
 - [x] External dependency integration confirmed working
 
 ---
-**Status**: Abgeschlossen
+**Status**: Pull Request erstellt - Bereit für Review
+**Pull Request**: #82 - https://github.com/trytofly94/book-tool/pull/82
 **Zuletzt aktualisiert**: 2025-09-11
