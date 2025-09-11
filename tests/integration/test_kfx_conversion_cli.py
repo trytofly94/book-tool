@@ -413,13 +413,13 @@ class TestKFXConversionConfigManagerFlow:
                 mock_converter = Mock()
                 mock_converter_class.return_value = mock_converter
 
-                # This was the failing line in the original bug
-                from calibre_books.core.downloader import KFXConverter
+                # This was the failing line in the original bug - now fixed to use FormatConverter
+                from calibre_books.core.converter import FormatConverter
 
-                converter = KFXConverter(config_manager)
+                converter = FormatConverter(config_manager)
 
                 # Verify the configuration was properly extracted
-                assert converter.max_workers == 6
+                assert converter.max_parallel == 6
                 assert converter.config_manager == config_manager
 
         finally:
@@ -484,6 +484,9 @@ class TestKFXConversionConfigManagerFlow:
                             "/tmp",
                         ],
                     )
+
+                    # Command should complete successfully
+                    assert result.exit_code == 0
 
                     # Verify that KFXConverter was called with a ConfigManager instance
                     assert len(converter_instances) > 0
