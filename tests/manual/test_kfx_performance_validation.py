@@ -14,14 +14,15 @@ from pathlib import Path
 from unittest.mock import patch
 from typing import List
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add paths for imports
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root))
 
-from calibre_books.config.manager import ConfigManager
-from calibre_books.core.conversion.kfx import KFXConverter
-
-# Import legacy converter
-from parallel_kfx_converter import ParallelKFXConverter
+# Import after path setup to avoid E402
+from calibre_books.config.manager import ConfigManager  # noqa: E402
+from calibre_books.core.conversion.kfx import KFXConverter  # noqa: E402
+from parallel_kfx_converter import ParallelKFXConverter  # noqa: E402
 
 # Pipeline books directory
 PIPELINE_DIR = Path("/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline")
@@ -133,7 +134,7 @@ class KFXPerformanceTester:
                 config_file.unlink()
 
         # Analysis
-        print(f"\n--- Parallel Worker Scaling Analysis ---")
+        print("\n--- Parallel Worker Scaling Analysis ---")
         best_throughput = max(results.values(), key=lambda x: x["throughput"])
         best_workers = [
             w
@@ -349,7 +350,7 @@ class KFXPerformanceTester:
                                 "error_message": str(e),
                                 "handling_time": time.time() - start_time,
                                 "handled_correctly": test_case["expected_success"]
-                                == False,
+                                is False,
                             }
                             print(f"  Exception: {e}")
                             print(
@@ -372,7 +373,7 @@ class KFXPerformanceTester:
         )
         total_cases = len(edge_case_results)
 
-        print(f"\n--- Error Handling Summary ---")
+        print("\n--- Error Handling Summary ---")
         print(f"Correctly handled: {correctly_handled}/{total_cases} cases")
 
         return correctly_handled == total_cases
@@ -476,7 +477,7 @@ class KFXPerformanceTester:
             }
 
         # Analysis
-        print(f"\n--- Performance Comparison Analysis ---")
+        print("\n--- Performance Comparison Analysis ---")
         for conv_type, results in comparison_results.items():
             print(f"{conv_type.upper()}:")
             print(f"  Type: {results['converter_type']}")
@@ -507,7 +508,7 @@ class KFXPerformanceTester:
         ]
 
         for suite_name, test_method in test_suites:
-            print(f"\n{'='*50}")
+            print(f"\n{'=' * 50}")
             try:
                 start_time = time.time()
                 success = test_method()
@@ -544,10 +545,10 @@ class KFXPerformanceTester:
             error_info = f" - {result['error']}" if "error" in result else ""
             print(f"{suite_name.ljust(20)} : {status} ({duration:.2f}s){error_info}")
 
-        print(f"\nOverall Results:")
+        print("\nOverall Results:")
         print(f"  Tests Passed: {passed_tests}/{total_tests}")
         print(f"  Total Time: {total_time:.2f}s")
-        print(f"  Success Rate: {(passed_tests/total_tests)*100:.1f}%")
+        print(f"  Success Rate: {(passed_tests / total_tests) * 100:.1f}%")
 
         overall_success = passed_tests == total_tests
         final_status = (

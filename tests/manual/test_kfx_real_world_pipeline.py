@@ -13,14 +13,15 @@ from pathlib import Path
 from unittest.mock import patch
 from typing import List
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Add paths for imports
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root / "src"))
+sys.path.insert(0, str(project_root))
 
-from calibre_books.config.manager import ConfigManager
-from calibre_books.core.conversion.kfx import KFXConverter
-
-# Import legacy converter
-from parallel_kfx_converter import ParallelKFXConverter
+# Import after path setup to avoid E402
+from calibre_books.config.manager import ConfigManager  # noqa: E402
+from calibre_books.core.conversion.kfx import KFXConverter  # noqa: E402
+from parallel_kfx_converter import ParallelKFXConverter  # noqa: E402
 
 # Pipeline books directory
 PIPELINE_DIR = Path("/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline")
@@ -185,7 +186,7 @@ class KFXRealWorldTester:
                                     / 1024
                                 )
                                 print(
-                                    f"  {i+1}. {candidate['filename']} ({size_mb:.1f} MB, {candidate['format']})"
+                                    f"  {i + 1}. {candidate['filename']} ({size_mb:.1f} MB, {candidate['format']})"
                                 )
 
                         # Test dry run batch conversion
