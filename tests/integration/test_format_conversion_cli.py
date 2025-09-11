@@ -71,10 +71,11 @@ class TestConvertCLIIntegration:
 class TestConvertKFXCommand(TestConvertCLIIntegration):
     """Test the convert kfx CLI command."""
 
+    @patch("calibre_books.cli.convert.KFXConverter")
     @patch("calibre_books.cli.convert.FormatConverter")
     @patch("calibre_books.cli.convert.FileScanner")
     def test_convert_kfx_check_requirements_all_satisfied(
-        self, mock_scanner, mock_converter_class
+        self, mock_scanner, mock_converter_class, mock_kfx_converter_class
     ):
         """Test convert kfx --check-requirements when all requirements are satisfied."""
         config_file = self.create_test_config()
@@ -82,13 +83,20 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         try:
             # Mock converter instance
             mock_converter = Mock()
-            mock_converter.check_system_requirements.return_value = {
+            mock_converter.validate_kfx_plugin.return_value = True
+            mock_converter_class.return_value = mock_converter
+
+            # Mock KFX converter instance
+            mock_kfx_converter = Mock()
+            mock_kfx_converter.check_system_requirements.return_value = {
                 "calibre": True,
                 "ebook-convert": True,
                 "kfx_plugin": True,
+                "kfx_plugin_advanced": True,
                 "kindle_previewer": True,
+                "library_access": True,
             }
-            mock_converter_class.return_value = mock_converter
+            mock_kfx_converter_class.return_value = mock_kfx_converter
 
             runner = CliRunner()
 
@@ -107,29 +115,37 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
                 assert result.exit_code == 0
                 assert "System Requirements" in result.output
                 assert "All requirements satisfied!" in result.output
-                mock_converter.check_system_requirements.assert_called_once()
+                mock_kfx_converter.check_system_requirements.assert_called_once()
 
         finally:
             config_file.unlink()
 
+    @patch("calibre_books.cli.convert.KFXConverter")
     @patch("calibre_books.cli.convert.FormatConverter")
     @patch("calibre_books.cli.convert.FileScanner")
     def test_convert_kfx_check_requirements_missing_components(
-        self, mock_scanner, mock_converter_class
+        self, mock_scanner, mock_converter_class, mock_kfx_converter_class
     ):
         """Test convert kfx --check-requirements when components are missing."""
         config_file = self.create_test_config()
 
         try:
-            # Mock converter instance with missing components
+            # Mock converter instance
             mock_converter = Mock()
-            mock_converter.check_system_requirements.return_value = {
+            mock_converter.validate_kfx_plugin.return_value = True
+            mock_converter_class.return_value = mock_converter
+
+            # Mock KFX converter instance with missing components
+            mock_kfx_converter = Mock()
+            mock_kfx_converter.check_system_requirements.return_value = {
                 "calibre": True,
                 "ebook-convert": False,
                 "kfx_plugin": False,
+                "kfx_plugin_advanced": False,
                 "kindle_previewer": True,
+                "library_access": False,
             }
-            mock_converter_class.return_value = mock_converter
+            mock_kfx_converter_class.return_value = mock_kfx_converter
 
             runner = CliRunner()
 
@@ -286,24 +302,31 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
         finally:
             config_file.unlink()
 
+    @patch("calibre_books.cli.convert.KFXConverter")
     @patch("calibre_books.cli.convert.FormatConverter")
     @patch("calibre_books.cli.convert.FileScanner")
     @patch("calibre_books.cli.convert.ProgressManager")
     def test_convert_kfx_successful_conversion(
-        self, mock_progress, mock_scanner, mock_converter_class
+        self,
+        mock_progress,
+        mock_scanner,
+        mock_converter_class,
+        mock_kfx_converter_class,
     ):
         """Test successful KFX conversion through CLI."""
         config_file = self.create_test_config()
 
         try:
-            # Mock converter with successful conversion
+            # Mock format converter with plugin validation
             mock_converter = Mock()
             mock_converter.validate_kfx_plugin.return_value = True
-
-            # Mock successful conversion results
-            successful_results = [Mock(success=True), Mock(success=True)]
-            mock_converter.convert_batch.return_value = successful_results
             mock_converter_class.return_value = mock_converter
+
+            # Mock KFX converter with successful conversion
+            mock_kfx_converter = Mock()
+            successful_results = [Mock(success=True), Mock(success=True)]
+            mock_kfx_converter.convert_books_to_kfx.return_value = successful_results
+            mock_kfx_converter_class.return_value = mock_kfx_converter
 
             # Mock scanner with test books
             from calibre_books.core.book import Book, BookMetadata, BookFormat
@@ -345,48 +368,82 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
                 assert "KFX conversion completed!" in result.output
                 assert "Successful: 2" in result.output
 
-                # Verify converter was called with correct parameters
-                mock_converter.convert_batch.assert_called_once()
-                call_args = mock_converter.convert_batch.call_args
-                assert len(call_args[0][0]) == 2  # 2 books
+                # Verify KFX converter was called with correct parameters
+                mock_kfx_converter.convert_books_to_kfx.assert_called_once()
+                call_args = mock_kfx_converter.convert_books_to_kfx.call_args
+                assert len(call_args[1]["books"]) == 2  # 2 books
                 assert call_args[1]["output_dir"] == Path(temp_dir)
 
         finally:
             config_file.unlink()
 
+    @patch("calibre_books.cli.convert.KFXConverter")
     @patch("calibre_books.cli.convert.FormatConverter")
     @patch("calibre_books.cli.convert.FileScanner")
     @patch("calibre_books.cli.convert.ProgressManager")
     def test_convert_kfx_with_failures(
-        self, mock_progress, mock_scanner, mock_converter_class
+        self,
+        mock_progress,
+        mock_scanner,
+        mock_format_converter_class,
+        mock_kfx_converter_class,
     ):
         """Test KFX conversion with some failures."""
         config_file = self.create_test_config()
 
         try:
-            # Mock converter with mixed results
-            mock_converter = Mock()
-            mock_converter.validate_kfx_plugin.return_value = True
+            # Mock FormatConverter for plugin validation
+            mock_format_converter = Mock()
+            mock_format_converter.validate_kfx_plugin.return_value = True
+            mock_format_converter_class.return_value = mock_format_converter
 
-            # Mock conversion results with failures
-            from calibre_books.core.book import Book, BookMetadata
+            # Mock KFX converter with mixed results
+            mock_kfx_converter = Mock()
+            mock_kfx_converter.validate_kfx_plugin.return_value = True
 
-            failed_book = Book(
-                metadata=BookMetadata(title="Failed Book", author="Test Author")
+            # Create proper ConversionResult objects for the mixed results
+            from calibre_books.core.book import ConversionResult, BookFormat
+            from pathlib import Path
+
+            success_result = ConversionResult(
+                input_file=Path("success_book.epub"),
+                output_file=Path("success_book.kfx"),
+                input_format=BookFormat.EPUB,
+                output_format=BookFormat.KFX,
+                success=True,
+                error=None,
             )
-            conversion_results = [
-                Mock(success=True, book=Mock(metadata=Mock(title="Success Book"))),
-                Mock(success=False, book=failed_book, error="Conversion failed"),
-            ]
-            mock_converter.convert_batch.return_value = conversion_results
-            mock_converter_class.return_value = mock_converter
 
-            # Mock scanner
+            failed_result = ConversionResult(
+                input_file=Path("failed_book.epub"),
+                output_file=None,
+                input_format=BookFormat.EPUB,
+                output_format=BookFormat.KFX,
+                success=False,
+                error="Conversion failed",
+            )
+
+            # Mock the convert_books_to_kfx method to return mixed results
+            mock_kfx_converter.convert_books_to_kfx.return_value = [
+                success_result,
+                failed_result,
+            ]
+            mock_kfx_converter_class.return_value = mock_kfx_converter
+
+            # Mock scanner to return 2 books
             mock_scanner_instance = Mock()
-            mock_scanner_instance.scan_directory.return_value = [
-                Mock(),
-                Mock(),
-            ]  # 2 books
+            from calibre_books.core.book import Book
+
+            # Create mock books with proper file_path attributes
+            mock_book1 = Mock(spec=Book)
+            mock_book1.metadata = Mock(title="Success Book")
+            mock_book1.format = BookFormat.EPUB
+
+            mock_book2 = Mock(spec=Book)
+            mock_book2.metadata = Mock(title="Failed Book")
+            mock_book2.format = BookFormat.EPUB
+
+            mock_scanner_instance.scan_directory.return_value = [mock_book1, mock_book2]
             mock_scanner.return_value = mock_scanner_instance
 
             # Mock progress manager
@@ -414,7 +471,7 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
                 assert "Successful: 1" in result.output
                 assert "Failed: 1" in result.output
                 assert "Failed conversions:" in result.output
-                assert "Failed Book: Conversion failed" in result.output
+                assert "failed_book.epub: Conversion failed" in result.output
 
         finally:
             config_file.unlink()

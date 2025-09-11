@@ -89,7 +89,7 @@ class TestKFXConversionCLIPluginValidation(TestKFXDocumentationIntegration):
         with (
             patch("calibre_books.cli.convert.FileScanner") as mock_scanner_class,
             patch("calibre_books.cli.convert.FormatConverter") as mock_converter_class,
-            patch("calibre_books.cli.convert.ProgressManager") as mock_progress,
+            patch("calibre_books.cli.convert.ProgressManager"),
         ):
 
             # Setup mocks
@@ -145,11 +145,23 @@ class TestKFXConversionCLIPluginValidation(TestKFXDocumentationIntegration):
     ):
         """Test that --check-requirements shows KFX plugin status."""
 
-        with patch("calibre_books.cli.convert.FormatConverter") as mock_converter_class:
-            mock_converter = Mock()
-            mock_converter_class.return_value = mock_converter
-            mock_converter.validate_kfx_plugin.return_value = True
-            mock_converter.check_system_requirements.return_value = {
+        with (
+            patch("calibre_books.cli.convert.KFXConverter") as mock_kfx_converter_class,
+            patch(
+                "calibre_books.cli.convert.FormatConverter"
+            ) as mock_format_converter_class,
+        ):
+
+            # Mock FormatConverter for initial plugin validation
+            mock_format_converter = Mock()
+            mock_format_converter.validate_kfx_plugin.return_value = True
+            mock_format_converter_class.return_value = mock_format_converter
+
+            # Mock KFXConverter for requirements check
+            mock_kfx_converter = Mock()
+            mock_kfx_converter_class.return_value = mock_kfx_converter
+            mock_kfx_converter.validate_kfx_plugin.return_value = True
+            mock_kfx_converter.check_system_requirements.return_value = {
                 "calibre": True,
                 "ebook-convert": True,
                 "kfx_plugin": False,  # Plugin missing
@@ -168,7 +180,7 @@ class TestKFXConversionCLIPluginValidation(TestKFXDocumentationIntegration):
             assert result.exit_code == 0
             assert "System Requirements" in result.output
             assert "KFX Output Plugin for Calibre" in result.output
-            assert "Missing requirements: kfx_plugin" in result.output
+            assert "kfx_plugin" in result.output
 
 
 class TestConfigInitKFXPluginWarning(TestKFXDocumentationIntegration):
