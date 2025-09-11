@@ -248,9 +248,10 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
 
             test_books = []
             for i in range(2):
-                metadata = BookMetadata(title=f"Test Book {i}", author="Test Author")
+                metadata = BookMetadata(
+                    title=f"Test Book {i}", author="Test Author", format=BookFormat.EPUB
+                )
                 book = Book(metadata=metadata)
-                book.format = BookFormat.EPUB
                 test_books.append(book)
 
             mock_scanner_instance = Mock()
@@ -309,9 +310,10 @@ class TestConvertKFXCommand(TestConvertCLIIntegration):
 
             test_books = []
             for i in range(2):
-                metadata = BookMetadata(title=f"Test Book {i}", author="Test Author")
+                metadata = BookMetadata(
+                    title=f"Test Book {i}", author="Test Author", format=BookFormat.EPUB
+                )
                 book = Book(metadata=metadata)
-                book.format = BookFormat.EPUB
                 test_books.append(book)
 
             mock_scanner_instance = Mock()
