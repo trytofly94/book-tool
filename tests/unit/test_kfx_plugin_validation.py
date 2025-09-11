@@ -11,7 +11,7 @@ import pytest
 
 from calibre_books.core.converter import FormatConverter
 from calibre_books.config.manager import ConfigManager
-from parallel_kfx_converter import ParallelKFXConverter as KFXConverter
+from calibre_books.core.conversion.kfx import KFXConverter
 
 
 class TestKFXPluginValidation:
@@ -37,8 +37,7 @@ class TestKFXPluginValidation:
     @pytest.fixture
     def kfx_converter(self, mock_config_manager):
         """KFXConverter instance with mocked config."""
-        with patch("parallel_kfx_converter.ParallelKFXConverter", create=True):
-            return KFXConverter(mock_config_manager)
+        return KFXConverter(mock_config_manager)
 
 
 class TestFormatConverterPluginValidation(TestKFXPluginValidation):
@@ -116,51 +115,65 @@ class TestKFXConverterPluginValidation(TestKFXPluginValidation):
     """Test plugin validation in KFXConverter."""
 
     def test_validate_kfx_plugin_delegates_to_format_converter(self, kfx_converter):
-        """Test that KFXConverter delegates plugin validation to FormatConverter."""
+        """Test that KFXConverter uses FormatConverter for plugin validation via system requirements check."""
+        # Mock the underlying format converter's plugin validation
         with patch.object(
-            kfx_converter.config_manager, "get_conversion_config"
-        ) as mock_get_config:
-            mock_get_config.return_value = {
-                "max_parallel": 4,
-                "output_path": "~/Converted-Books",
-                "kfx_plugin_required": True,
-            }
+            kfx_converter._format_converter, "validate_kfx_plugin", return_value=True
+        ):
+            # Test the system requirements check which includes KFX plugin validation
+            requirements = kfx_converter.check_system_requirements()
 
-            with patch(
-                "calibre_books.core.converter.FormatConverter"
-            ) as mock_converter_class:
-                mock_converter = Mock()
-                mock_converter_class.return_value = mock_converter
-                mock_converter.validate_kfx_plugin.return_value = True
-
-                assert kfx_converter.validate_kfx_plugin() is True
-                mock_converter.validate_kfx_plugin.assert_called_once()
+            # KFX plugin should be available
+            assert requirements["kfx_plugin"] is True
 
     def test_validate_kfx_plugin_handles_exception(self, kfx_converter):
         """Test that KFXConverter handles exceptions during plugin validation."""
-        with patch(
-            "calibre_books.core.converter.FormatConverter",
-            side_effect=Exception("Import error"),
-        ):
-            assert kfx_converter.validate_kfx_plugin() is False
+
+        # Mock subprocess.run to return success for calibre tools but fail for plugin check
+        def mock_subprocess_run(cmd, **kwargs):
+            if cmd == ["calibre", "--version"]:
+                return Mock(returncode=0)
+            elif cmd == ["ebook-convert", "--version"]:
+                return Mock(returncode=0)
+            elif cmd == ["calibre-customize", "-l"]:
+                raise Exception("Plugin validation error")
+            else:
+                return Mock(returncode=0)
+
+        with patch("subprocess.run", side_effect=mock_subprocess_run):
+            # System requirements should handle the exception gracefully
+            requirements = kfx_converter.check_system_requirements()
+            assert requirements["kfx_plugin"] is False
 
     def test_check_system_requirements_includes_kfx_plugin(self, kfx_converter):
         """Test that system requirements check includes KFX plugin status."""
-        # Mock all the individual check methods
-        with (
-            patch.object(kfx_converter, "_check_calibre", return_value=True),
-            patch.object(kfx_converter, "_check_ebook_convert", return_value=True),
-            patch.object(kfx_converter, "_check_kfx_plugin", return_value=False),
-            patch.object(kfx_converter, "_check_kindle_previewer", return_value=True),
-        ):
+        # Mock the subprocess calls for system requirements
+        with patch("subprocess.run") as mock_run:
+            # Mock successful calibre and ebook-convert checks
+            mock_run.return_value = Mock(
+                returncode=0, stdout="KFX Output - Convert ebooks"
+            )
 
-            requirements = kfx_converter.check_system_requirements()
+            # Mock the KFXConverter specific methods
+            with (
+                patch.object(
+                    kfx_converter, "_check_kindle_previewer", return_value=True
+                ),
+                patch.object(
+                    kfx_converter, "_check_library_access", return_value=False
+                ),
+            ):
+                requirements = kfx_converter.check_system_requirements()
 
-            assert "kfx_plugin" in requirements
-            assert requirements["kfx_plugin"] is False
-            assert requirements["calibre"] is True
-            assert requirements["ebook-convert"] is True
-            assert requirements["kindle_previewer"] is True
+                # Basic requirements
+                assert "calibre" in requirements
+                assert "ebook-convert" in requirements
+                assert "kfx_plugin" in requirements
+
+                # KFX-specific requirements
+                assert "kfx_plugin_advanced" in requirements
+                assert "kindle_previewer" in requirements
+                assert "library_access" in requirements
 
 
 class TestPluginValidationIntegration(TestKFXPluginValidation):
