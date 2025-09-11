@@ -182,9 +182,14 @@ class FileScanner(LoggerMixin):
             if len(parts) == 2:
                 return BookMetadata(title=parts[1].strip(), author=parts[0].strip())
         elif " by " in name_without_ext.lower():
-            parts = name_without_ext.split(" by ", 1)
-            if len(parts) == 2:
-                return BookMetadata(title=parts[0].strip(), author=parts[1].strip())
+            # Find the case-insensitive position and split there
+            lower_name = name_without_ext.lower()
+            by_pos = lower_name.find(" by ")
+            if by_pos != -1:
+                title_part = name_without_ext[:by_pos].strip()
+                author_part = name_without_ext[by_pos + 4 :].strip()  # 4 = len(" by ")
+                if title_part and author_part:
+                    return BookMetadata(title=title_part, author=author_part)
         elif "_" in name_without_ext:
             # Handle underscore patterns like "author_title" or "author_series#_title"
             parts = name_without_ext.split("_", 1)
@@ -192,13 +197,18 @@ class FileScanner(LoggerMixin):
                 author_part = parts[0].strip()
                 title_part = parts[1].strip()
 
-                # Expand known author abbreviations
-                expanded_author = self._expand_author_name(author_part)
+                # Skip if either part is empty after stripping
+                if not author_part or not title_part:
+                    # Fall through to default case
+                    pass
+                else:
+                    # Expand known author abbreviations
+                    expanded_author = self._expand_author_name(author_part)
 
-                # Clean up title part (replace underscores with spaces, handle special cases)
-                cleaned_title = self._clean_title(title_part)
+                    # Clean up title part (replace underscores with spaces, handle special cases)
+                    cleaned_title = self._clean_title(title_part)
 
-                return BookMetadata(title=cleaned_title, author=expanded_author)
+                    return BookMetadata(title=cleaned_title, author=expanded_author)
 
         # Default: use filename as title
         return BookMetadata(title=name_without_ext, author="Unknown")
