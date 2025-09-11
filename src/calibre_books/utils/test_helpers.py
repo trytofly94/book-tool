@@ -14,7 +14,8 @@ from typing import Optional
 
 def get_test_book_path(
     cli_args: Optional[argparse.Namespace] = None,
-    env_var: str = "CALIBRE_BOOKS_TEST_PATH",
+    primary_env_var: str = "BOOK_PIPELINE_PATH",
+    fallback_env_var: str = "CALIBRE_BOOKS_TEST_PATH",
     default_path: str = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline",
     validate_exists: bool = True,
 ) -> Path:
@@ -23,12 +24,14 @@ def get_test_book_path(
 
     Priority order:
     1. CLI arguments (if provided via cli_args.book_path)
-    2. Environment Variable (CALIBRE_BOOKS_TEST_PATH by default)
-    3. Default hardcoded path (for backward compatibility)
+    2. Primary Environment Variable (BOOK_PIPELINE_PATH by default - Issue #46 spec)
+    3. Fallback Environment Variable (CALIBRE_BOOKS_TEST_PATH - Issue #49 legacy)
+    4. Default hardcoded path (for backward compatibility)
 
     Args:
         cli_args: Parsed CLI arguments namespace (optional)
-        env_var: Environment variable name to check
+        primary_env_var: Primary environment variable name to check (Issue #46)
+        fallback_env_var: Fallback environment variable name (Issue #49 compatibility)
         default_path: Fallback path if no other source is available
         validate_exists: Whether to validate that the path exists
 
@@ -47,12 +50,17 @@ def get_test_book_path(
         resolved_path = cli_args.book_path
         source = "CLI argument"
 
-    # Priority 2: Environment variable
-    elif env_var in os.environ and os.environ[env_var].strip():
-        resolved_path = os.environ[env_var].strip()
-        source = f"environment variable {env_var}"
+    # Priority 2: Primary environment variable (Issue #46 spec)
+    elif primary_env_var in os.environ and os.environ[primary_env_var].strip():
+        resolved_path = os.environ[primary_env_var].strip()
+        source = f"environment variable {primary_env_var}"
 
-    # Priority 3: Default fallback
+    # Priority 3: Fallback environment variable (Issue #49 legacy)
+    elif fallback_env_var in os.environ and os.environ[fallback_env_var].strip():
+        resolved_path = os.environ[fallback_env_var].strip()
+        source = f"environment variable {fallback_env_var}"
+
+    # Priority 4: Default fallback
     else:
         resolved_path = default_path
         source = "default fallback"
@@ -70,7 +78,8 @@ def get_test_book_path(
             f"Book directory not found (from {source}): {book_path}\n"
             f"Please ensure the directory exists or provide a valid path via:\n"
             f"  - CLI argument: --book-path /path/to/books\n"
-            f"  - Environment: export {env_var}=/path/to/books"
+            f"  - Environment: export {primary_env_var}=/path/to/books\n"
+            f"  - Environment: export {fallback_env_var}=/path/to/books"
         )
 
     return book_path
@@ -80,7 +89,8 @@ def add_book_path_argument(
     parser: argparse.ArgumentParser,
     dest: str = "book_path",
     help_text: Optional[str] = None,
-    env_var: str = "CALIBRE_BOOKS_TEST_PATH",
+    primary_env_var: str = "BOOK_PIPELINE_PATH",
+    fallback_env_var: str = "CALIBRE_BOOKS_TEST_PATH",
     default_display: str = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline",
 ) -> None:
     """
@@ -93,13 +103,14 @@ def add_book_path_argument(
         parser: The ArgumentParser instance to add the argument to
         dest: Destination attribute name in parsed args (default: book_path)
         help_text: Custom help text (uses standard text if None)
-        env_var: Environment variable name to mention in help
+        primary_env_var: Primary environment variable name to mention in help
+        fallback_env_var: Fallback environment variable name to mention in help
         default_display: Default path to show in help text
     """
     if help_text is None:
         help_text = (
             f"Path to book directory for testing. "
-            f"Can also be set via {env_var} environment variable. "
+            f"Can also be set via {primary_env_var} or {fallback_env_var} environment variables. "
             f"Default: {default_display}"
         )
 

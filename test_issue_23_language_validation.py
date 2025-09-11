@@ -24,14 +24,14 @@ try:
         add_book_path_argument,
     )
 except ImportError:
-    # Fallback if new utils not available
-    def get_test_book_path(cli_args=None):
-        from pathlib import Path
-
-        return Path("/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline")
-
-    def add_book_path_argument(parser):
-        parser.add_argument("--book-path", help="Path to book directory")
+    # Error if new utils not available - no hardcoded fallbacks
+    print(
+        "ERROR: Test helpers not found. Please ensure calibre_books package is available."
+    )
+    print(
+        "ERROR: Run this script from the project root or ensure src/ is in PYTHONPATH"
+    )
+    sys.exit(1)
 
 
 # Setup logging
@@ -192,7 +192,8 @@ def test_new_language_support(pipeline_dir=None):
     print("=" * 80)
 
     if pipeline_dir is None:
-        pipeline_dir = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+        # Use test helper to get default path (no fallback here)
+        pipeline_dir = str(get_test_book_path(validate_exists=False))
     if os.path.exists(pipeline_dir):
         print(f"Testing books in pipeline directory: {pipeline_dir}")
 
@@ -246,7 +247,11 @@ Example usage:
   # Use custom book directory
   python test_issue_23_language_validation.py --book-path /custom/path/to/books
 
-  # Use environment variable
+  # Use environment variable (either works)
+  export BOOK_PIPELINE_PATH=/custom/path/to/books
+  python test_issue_23_language_validation.py
+
+  # Or legacy environment variable
   export CALIBRE_BOOKS_TEST_PATH=/custom/path/to/books
   python test_issue_23_language_validation.py
 """,
