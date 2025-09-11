@@ -14,6 +14,7 @@ from rich.console import Console
 from rich.table import Table
 
 from calibre_books.core.converter import FormatConverter
+from calibre_books.core.conversion.kfx import KFXConverter
 from calibre_books.core.file_scanner import FileScanner
 from calibre_books.utils.progress import ProgressManager
 
@@ -76,10 +77,15 @@ def kfx(
     dry_run = ctx.obj["dry_run"]
 
     try:
+        # Use the new KFXConverter with ConfigManager integration
+        kfx_converter = KFXConverter(config)
         converter = FormatConverter(config)
 
-        # Check KFX plugin before attempting conversion
-        if not converter.validate_kfx_plugin():
+        # Check KFX plugin before attempting conversion (respect configuration)
+        conversion_config = config.get_conversion_config()
+        kfx_plugin_required = conversion_config.get("kfx_plugin_required", True)
+
+        if kfx_plugin_required and not converter.validate_kfx_plugin():
             console.print("[red]Error: KFX Output plugin not found![/red]")
             console.print("Please install the KFX Output plugin:")
             console.print("1. Open Calibre → Preferences → Plugins")
@@ -89,11 +95,15 @@ def kfx(
                 "\nFor details: https://github.com/trytofly94/book-tool#kfx-conversion-prerequisites"
             )
             raise click.ClickException("KFX Output plugin required for KFX conversion")
+        elif not kfx_plugin_required:
+            console.print(
+                "[yellow]Warning: KFX plugin check disabled by configuration[/yellow]"
+            )
 
         # Check system requirements if requested
         if check_requirements:
             console.print("[cyan]Checking KFX conversion requirements...[/cyan]")
-            requirements = converter.check_system_requirements()
+            requirements = kfx_converter.check_system_requirements()
 
             table = Table(title="System Requirements")
             table.add_column("Component", style="cyan")
@@ -104,7 +114,9 @@ def kfx(
                 "calibre": "Calibre GUI application",
                 "ebook-convert": "Calibre ebook-convert tool",
                 "kfx_plugin": "KFX Output Plugin for Calibre",
+                "kfx_plugin_advanced": "Advanced KFX Output Plugin",
                 "kindle_previewer": "Kindle Previewer 3",
+                "library_access": "Calibre Library Access",
             }
 
             for component, available in requirements.items():
@@ -157,23 +169,24 @@ def kfx(
                 console.print(f"    ... and {len(books) - 5} more")
             return
 
-        # Start KFX conversion
+        # Start KFX conversion using the new KFXConverter
         console.print(f"[cyan]Converting {len(books)} books to KFX format...[/cyan]")
 
-        with ProgressManager(f"Converting to KFX") as progress:
-            results = converter.convert_batch(
-                books,
-                output_format="kfx",
+        with ProgressManager("Converting to KFX") as progress:
+            # Use KFXConverter's convert_books_to_kfx method
+            results = kfx_converter.convert_books_to_kfx(
+                books=books,
                 output_dir=output_dir,
                 parallel=parallel,
                 progress_callback=progress.update,
+                dry_run=dry_run,
             )
 
         # Display results
         successful = sum(1 for r in results if r.success)
         failed = len(results) - successful
 
-        console.print(f"\n[green]KFX conversion completed![/green]")
+        console.print("\n[green]KFX conversion completed![/green]")
         console.print(f"  Books processed: {len(books)}")
         console.print(f"  Successful: {successful}")
 
@@ -185,7 +198,10 @@ def kfx(
             if failed_results:
                 console.print("\n[red]Failed conversions:[/red]")
                 for result in failed_results[:5]:  # Show first 5
-                    console.print(f"  • {result.book.metadata.title}: {result.error}")
+                    file_name = (
+                        result.input_file.name if result.input_file else "unknown"
+                    )
+                    console.print(f"  • {file_name}: {result.error}")
                 if len(failed_results) > 5:
                     console.print(f"    ... and {len(failed_results) - 5} more")
 
@@ -240,7 +256,7 @@ def single(
             output_file = input_file.parent / f"{input_file.stem}_converted{suffix}"
 
         if dry_run:
-            console.print(f"[yellow]DRY RUN: Would convert:[/yellow]")
+            console.print("[yellow]DRY RUN: Would convert:[/yellow]")
             console.print(f"  Input: {input_file}")
             console.print(f"  Output: {output_file}")
             console.print(f"  Format: {format}")
