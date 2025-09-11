@@ -30,14 +30,12 @@ try:
         add_book_path_argument,
     )
 except ImportError:
-    # If new utils not available, create a dummy implementation for fallback
-    def get_test_book_path(cli_args=None):
-        from pathlib import Path
-
-        return Path("/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline")
-
-    def add_book_path_argument(parser):
-        parser.add_argument("--book-path", help="Path to book directory")
+    # Error if new utils not available - no hardcoded fallbacks
+    print(
+        "ERROR: Test helpers not found. Please ensure calibre_books package is available."
+    )
+    print("Run this script from the project root or ensure src/ is in PYTHONPATH")
+    sys.exit(1)
 
 
 # Setup logging
@@ -54,9 +52,8 @@ class LocalizationTestSuite:
         if test_directory:
             self.test_directory = test_directory
         else:
-            self.test_directory = (
-                "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
-            )
+            # Use test helper to get default path (no hardcoded fallback)
+            self.test_directory = str(get_test_book_path(validate_exists=False))
         self.extractor = LocalizationMetadataExtractor()
         self.lookup_service = ASINLookupService()
         self.automation = CalibreASINAutomation()
@@ -506,7 +503,11 @@ Example usage:
   # Use custom book directory
   python test_localization_comprehensive.py --book-path /custom/path/to/books
 
-  # Use environment variable
+  # Use environment variable (either works)
+  export BOOK_PIPELINE_PATH=/custom/path/to/books
+  python test_localization_comprehensive.py
+
+  # Or legacy environment variable
   export CALIBRE_BOOKS_TEST_PATH=/custom/path/to/books
   python test_localization_comprehensive.py
 """,
