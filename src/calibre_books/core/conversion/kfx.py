@@ -341,18 +341,62 @@ class KFXConverter(LoggerMixin):
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if dry_run:
-            self.logger.info(f"DRY RUN: Would convert {input_path} to {output_path}")
-            return ConversionResult(
-                input_file=input_path,
-                output_file=output_path,
-                input_format=self._format_converter._detect_format(input_path)
-                or BookFormat.EPUB,
-                output_format=BookFormat.KFX,
-                success=True,
-                conversion_time=0.0,
-                file_size_before=input_path.stat().st_size,
-                file_size_after=input_path.stat().st_size,  # Estimate
-            )
+            # Additional validation for dry run
+            try:
+                file_size = input_path.stat().st_size
+                if file_size == 0:
+                    error_msg = f"Input file is empty: {input_path}"
+                    self.logger.error(error_msg)
+                    return ConversionResult(
+                        input_file=input_path,
+                        output_file=output_path,
+                        input_format=self._format_converter._detect_format(input_path)
+                        or BookFormat.EPUB,
+                        output_format=BookFormat.KFX,
+                        success=False,
+                        error=error_msg,
+                    )
+
+                # Check if file extension is valid for conversion
+                valid_extensions = [".epub", ".mobi", ".azw", ".azw3", ".pdf"]
+                if input_path.suffix.lower() not in valid_extensions:
+                    error_msg = f"Unsupported file format for KFX conversion: {input_path.suffix}"
+                    self.logger.error(error_msg)
+                    return ConversionResult(
+                        input_file=input_path,
+                        output_file=output_path,
+                        input_format=self._format_converter._detect_format(input_path)
+                        or BookFormat.EPUB,
+                        output_format=BookFormat.KFX,
+                        success=False,
+                        error=error_msg,
+                    )
+
+                self.logger.info(
+                    f"DRY RUN: Would convert {input_path} to {output_path}"
+                )
+                return ConversionResult(
+                    input_file=input_path,
+                    output_file=output_path,
+                    input_format=self._format_converter._detect_format(input_path)
+                    or BookFormat.EPUB,
+                    output_format=BookFormat.KFX,
+                    success=True,
+                    conversion_time=0.0,
+                    file_size_before=file_size,
+                    file_size_after=file_size,  # Estimate
+                )
+            except OSError as e:
+                error_msg = f"Cannot access file for dry run validation: {e}"
+                self.logger.error(error_msg)
+                return ConversionResult(
+                    input_file=input_path,
+                    output_file=output_path,
+                    input_format=BookFormat.EPUB,
+                    output_format=BookFormat.KFX,
+                    success=False,
+                    error=error_msg,
+                )
 
         try:
             # Build enhanced KFX conversion command
