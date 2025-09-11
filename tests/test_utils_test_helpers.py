@@ -78,6 +78,36 @@ class TestPathResolution(unittest.TestCase):
         result = get_test_book_path()
         self.assertEqual(result.resolve(), self.test_book_dir.resolve())
 
+    def test_issue_46_dual_environment_variables(self):
+        """Test Issue #46 dual environment variable support."""
+        # Create two different test directories
+        with (
+            tempfile.TemporaryDirectory() as primary_dir,
+            tempfile.TemporaryDirectory() as fallback_dir,
+        ):
+            primary_path = Path(primary_dir)
+            fallback_path = Path(fallback_dir)
+
+            # Test 1: Only BOOK_PIPELINE_PATH is set
+            os.environ["BOOK_PIPELINE_PATH"] = str(primary_path)
+            result = get_test_book_path(validate_exists=False)
+            self.assertEqual(result.resolve(), primary_path.resolve())
+            del os.environ["BOOK_PIPELINE_PATH"]
+
+            # Test 2: Only CALIBRE_BOOKS_TEST_PATH is set
+            os.environ["CALIBRE_BOOKS_TEST_PATH"] = str(fallback_path)
+            result = get_test_book_path(validate_exists=False)
+            self.assertEqual(result.resolve(), fallback_path.resolve())
+
+            # Test 3: Both are set - BOOK_PIPELINE_PATH should win
+            os.environ["BOOK_PIPELINE_PATH"] = str(primary_path)
+            result = get_test_book_path(validate_exists=False)
+            self.assertEqual(result.resolve(), primary_path.resolve())
+
+            # Cleanup
+            del os.environ["BOOK_PIPELINE_PATH"]
+            del os.environ["CALIBRE_BOOKS_TEST_PATH"]
+
     def test_default_fallback(self):
         """Test that default path is used when nothing else is set."""
         # Ensure environment is clean
@@ -123,15 +153,27 @@ class TestPathResolution(unittest.TestCase):
         self.assertEqual(result.resolve(), self.test_book_dir.resolve())
 
     def test_custom_env_var(self):
-        """Test using custom environment variable name."""
-        custom_env_var = "CUSTOM_BOOK_PATH_TEST"
-        os.environ[custom_env_var] = str(self.test_book_dir)
+        """Test using custom environment variable names."""
+        custom_primary_var = "CUSTOM_BOOK_PATH_PRIMARY"
+        custom_fallback_var = "CUSTOM_BOOK_PATH_FALLBACK"
 
-        result = get_test_book_path(env_var=custom_env_var)
+        # Test custom primary environment variable
+        os.environ[custom_primary_var] = str(self.test_book_dir)
+        result = get_test_book_path(
+            primary_env_var=custom_primary_var,
+            fallback_env_var=custom_fallback_var,
+        )
         self.assertEqual(result.resolve(), self.test_book_dir.resolve())
+        del os.environ[custom_primary_var]
 
-        # Clean up
-        del os.environ[custom_env_var]
+        # Test custom fallback environment variable
+        os.environ[custom_fallback_var] = str(self.test_book_dir)
+        result = get_test_book_path(
+            primary_env_var=custom_primary_var,
+            fallback_env_var=custom_fallback_var,
+        )
+        self.assertEqual(result.resolve(), self.test_book_dir.resolve())
+        del os.environ[custom_fallback_var]
 
     def test_path_expansion(self):
         """Test that paths are properly expanded (~ and relative)."""
