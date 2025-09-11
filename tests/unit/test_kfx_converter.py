@@ -317,16 +317,18 @@ class TestKFXConverterSystemRequirements:
             config_manager = ConfigManager(Path(config_file.name))
             converter = KFXConverter(config_manager)
 
-            requirements = converter.check_system_requirements()
+            # Mock the Kindle Previewer check since it checks file paths directly
+            with patch.object(converter, "_check_kindle_previewer", return_value=False):
+                requirements = converter.check_system_requirements()
 
-            # With failed subprocess calls, tools should show as unavailable
-            assert requirements["calibre"] is False
-            assert requirements["ebook-convert"] is False
-            assert requirements["kfx_plugin"] is False
-            # KFX-specific requirements should also fail
-            assert requirements["kfx_plugin_advanced"] is False
-            assert requirements["kindle_previewer"] is False
-            assert requirements["library_access"] is False
+                # With failed subprocess calls, tools should show as unavailable
+                assert requirements["calibre"] is False
+                assert requirements["ebook-convert"] is False
+                assert requirements["kfx_plugin"] is False
+                # KFX-specific requirements should also fail
+                assert requirements["kfx_plugin_advanced"] is False
+                assert requirements["kindle_previewer"] is False
+                assert requirements["library_access"] is False
         finally:
             Path(config_file.name).unlink()
 
@@ -361,12 +363,18 @@ class TestKFXConverterBookConversion:
             # Create test book that actually exists
             test_book = self.create_test_book()
             try:
-                # Test dry run to avoid actual conversion
-                results = converter.convert_books_to_kfx([test_book], dry_run=True)
+                # Mock KFX plugin validation for dry run
+                with patch.object(
+                    converter._format_converter,
+                    "validate_kfx_plugin",
+                    return_value=True,
+                ):
+                    # Test dry run to avoid actual conversion
+                    results = converter.convert_books_to_kfx([test_book], dry_run=True)
 
-                assert len(results) == 1
-                assert results[0].success  # Dry run should succeed
-                assert results[0].output_format == BookFormat.KFX
+                    assert len(results) == 1
+                    assert results[0].success  # Dry run should succeed
+                    assert results[0].output_format == BookFormat.KFX
             finally:
                 test_book.file_path.unlink()  # Clean up test file
         finally:

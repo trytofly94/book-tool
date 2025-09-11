@@ -260,13 +260,14 @@ class KFXConverter(LoggerMixin):
             f"(parallel: {parallel}, quality: {quality})"
         )
 
-        # Use the base converter's KFX batch conversion with enhanced options
-        conversion_results = self._format_converter.convert_kfx_batch(
-            kfx_files=kfx_files,
+        # Use the base converter's regular batch conversion to convert TO KFX
+        conversion_results = self._format_converter.convert_batch(
+            files=kfx_files,
             output_dir=output_dir,
-            output_format="kfx",  # Force KFX output
+            output_format="kfx",  # Convert TO KFX format
             parallel=parallel,
             quality=quality,
+            include_cover=True,
             preserve_metadata=preserve_metadata,
             progress_callback=progress_callback,
             dry_run=dry_run,
