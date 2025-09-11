@@ -14,7 +14,7 @@ from typing import Dict, Any
 
 from calibre_books.config.manager import ConfigManager
 from calibre_books.core.book import Book, BookMetadata, BookFormat
-from parallel_kfx_converter import ParallelKFXConverter as KFXConverter
+from calibre_books.core.conversion.kfx import KFXConverter
 
 
 class TestKFXConverterInitialization:
@@ -58,21 +58,13 @@ class TestKFXConverterInitialization:
         try:
             config_manager = ConfigManager(config_file)
 
-            # Mock the parallel converter import to avoid dependency issues
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter"
-            ) as mock_converter_class:
-                mock_converter = Mock()
-                mock_converter_class.return_value = mock_converter
+            # Initialize KFXConverter - this should NOT raise AttributeError
+            converter = KFXConverter(config_manager)
 
-                # Initialize KFXConverter - this should NOT raise AttributeError
-                converter = KFXConverter(config_manager)
-
-                # Verify initialization succeeded
-                assert converter.config_manager == config_manager
-                assert converter.max_workers == 6  # From conversion config
-                assert hasattr(converter, "calibre_config")
-                assert converter._converter == mock_converter
+            # Verify initialization succeeded
+            assert converter.config_manager == config_manager
+            assert converter.max_workers == 6  # From conversion config
+            assert hasattr(converter, "calibre_config")
         finally:
             config_file.unlink()
 
@@ -97,20 +89,13 @@ class TestKFXConverterInitialization:
         try:
             config_manager = ConfigManager(config_file)
 
-            # Mock the parallel converter import
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter"
-            ) as mock_converter_class:
-                mock_converter = Mock()
-                mock_converter_class.return_value = mock_converter
+            # Initialize KFXConverter - should use defaults when conversion config is missing
+            converter = KFXConverter(config_manager)
 
-                # Initialize KFXConverter - should use defaults when conversion config is missing
-                converter = KFXConverter(config_manager)
-
-                # Verify it falls back to defaults gracefully
-                assert converter.config_manager == config_manager
-                assert converter.max_workers == 4  # Default value
-                assert hasattr(converter, "calibre_config")
+            # Verify it falls back to defaults gracefully
+            assert converter.config_manager == config_manager
+            assert converter.max_workers == 4  # Default value
+            assert hasattr(converter, "calibre_config")
         finally:
             config_file.unlink()
 
@@ -131,16 +116,10 @@ class TestKFXConverterInitialization:
         try:
             config_manager = ConfigManager(config_file)
 
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter"
-            ) as mock_converter_class:
-                mock_converter = Mock()
-                mock_converter_class.return_value = mock_converter
+            # Should use default max_workers when not specified
+            converter = KFXConverter(config_manager)
 
-                # Should use default max_workers when not specified
-                converter = KFXConverter(config_manager)
-
-                assert converter.max_workers == 4  # Default value
+            assert converter.max_workers == 4  # Default value
         finally:
             config_file.unlink()
 
@@ -150,18 +129,12 @@ class TestKFXConverterInitialization:
         non_existent_path = Path("/tmp/non_existent_config.yml")
         config_manager = ConfigManager(non_existent_path)
 
-        with patch(
-            "parallel_kfx_converter.ParallelKFXConverter"
-        ) as mock_converter_class:
-            mock_converter = Mock()
-            mock_converter_class.return_value = mock_converter
+        # Should handle missing config file gracefully
+        converter = KFXConverter(config_manager)
 
-            # Should handle missing config file gracefully
-            converter = KFXConverter(config_manager)
-
-            # Should use all defaults
-            assert converter.max_workers == 4
-            assert converter.calibre_config == {}
+        # Should use all defaults
+        assert converter.max_workers == 4
+        assert converter.calibre_config == {}
 
 
 class TestKFXConverterConfigManagerInterface:
@@ -189,24 +162,18 @@ class TestKFXConverterConfigManagerInterface:
             # Verify ConfigManager doesn't have 'get' method (the source of the original bug)
             assert not hasattr(config_manager, "get")
 
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter"
-            ) as mock_converter_class:
-                mock_converter = Mock()
-                mock_converter_class.return_value = mock_converter
-
-                # This should NOT raise AttributeError: 'ConfigManager' object has no attribute 'get'
-                try:
-                    converter = KFXConverter(config_manager)
-                    # If we get here, the bug is fixed
-                    assert converter.max_workers == 8
-                    assert converter.config_manager == config_manager
-                except AttributeError as e:
-                    if "'ConfigManager' object has no attribute 'get'" in str(e):
-                        pytest.fail(f"GitHub Issue #1 bug still exists: {e}")
-                    else:
-                        # Re-raise if it's a different AttributeError
-                        raise
+            # This should NOT raise AttributeError: 'ConfigManager' object has no attribute 'get'
+            try:
+                converter = KFXConverter(config_manager)
+                # If we get here, the bug is fixed
+                assert converter.max_workers == 8
+                assert converter.config_manager == config_manager
+            except AttributeError as e:
+                if "'ConfigManager' object has no attribute 'get'" in str(e):
+                    pytest.fail(f"GitHub Issue #1 bug still exists: {e}")
+                else:
+                    # Re-raise if it's a different AttributeError
+                    raise
         finally:
             Path(config_file.name).unlink()
 
@@ -245,15 +212,9 @@ class TestKFXConverterConfigManagerInterface:
             max_parallel = conversion_config.get("max_parallel", 4)
             assert max_parallel == 12
 
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter"
-            ) as mock_converter_class:
-                mock_converter = Mock()
-                mock_converter_class.return_value = mock_converter
-
-                # Initialize converter and verify it uses the correct values
-                converter = KFXConverter(config_manager)
-                assert converter.max_workers == 12
+            # Initialize converter and verify it uses the correct values
+            converter = KFXConverter(config_manager)
+            assert converter.max_workers == 12
         finally:
             Path(config_file.name).unlink()
 
@@ -272,21 +233,15 @@ class TestKFXConverterErrorHandling:
             "Calibre config error"
         )
 
-        with patch(
-            "parallel_kfx_converter.ParallelKFXConverter"
-        ) as mock_converter_class:
-            mock_converter = Mock()
-            mock_converter_class.return_value = mock_converter
+        # Should not raise exception, should use defaults when config methods fail
+        converter = KFXConverter(mock_config_manager)
 
-            # Should not raise exception, should use defaults
-            converter = KFXConverter(mock_config_manager)
+        # Should have fallen back to defaults
+        assert converter.max_workers == 4
+        assert converter.calibre_config == {}
 
-            # Should have fallen back to defaults
-            assert converter.max_workers == 4
-            assert converter.calibre_config == {}
-
-    def test_parallel_converter_import_failure(self):
-        """Test handling of ParallelKFXConverter import failure."""
+    def test_kfx_converter_with_valid_config(self):
+        """Test KFXConverter handles valid configuration correctly."""
         config_data = {
             "conversion": {"max_parallel": 6},
             "calibre": {"library_path": "~/test"},
@@ -299,17 +254,11 @@ class TestKFXConverterErrorHandling:
         try:
             config_manager = ConfigManager(Path(config_file.name))
 
-            # Mock import failure
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter",
-                side_effect=ImportError("Module not found"),
-            ):
+            # Should handle valid configuration correctly
+            converter = KFXConverter(config_manager)
 
-                # Should handle import failure gracefully
-                converter = KFXConverter(config_manager)
-
-                assert converter._converter is None
-                assert converter.max_workers == 6  # Config should still work
+            assert converter.max_workers == 6  # Config should be loaded
+            assert hasattr(converter, "_format_converter")  # Should have base converter
         finally:
             Path(config_file.name).unlink()
 
@@ -332,24 +281,24 @@ class TestKFXConverterSystemRequirements:
 
         try:
             config_manager = ConfigManager(Path(config_file.name))
+            converter = KFXConverter(config_manager)
 
-            # Mock converter with successful plugin checks
-            mock_converter = Mock()
-            mock_converter.check_kfx_plugin.return_value = True
-            mock_converter.check_kindle_previewer.return_value = True
-
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter",
-                return_value=mock_converter,
-            ):
-                converter = KFXConverter(config_manager)
+            # Mock subprocess calls for system requirements
+            with patch("subprocess.run") as mock_run:
+                mock_run.return_value = Mock(
+                    returncode=0, stdout="KFX Output - Convert ebooks to KFX format"
+                )
 
                 requirements = converter.check_system_requirements()
 
+                # Base requirements should be available with successful mock
                 assert requirements["calibre"] is True
                 assert requirements["ebook-convert"] is True
                 assert requirements["kfx_plugin"] is True
-                assert requirements["kindle_previewer"] is True
+                # KFX-specific requirements
+                assert "kfx_plugin_advanced" in requirements
+                assert "kindle_previewer" in requirements
+                assert "library_access" in requirements
         finally:
             Path(config_file.name).unlink()
 
@@ -366,20 +315,18 @@ class TestKFXConverterSystemRequirements:
 
         try:
             config_manager = ConfigManager(Path(config_file.name))
+            converter = KFXConverter(config_manager)
 
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter", side_effect=ImportError()
-            ):
-                converter = KFXConverter(config_manager)
+            requirements = converter.check_system_requirements()
 
-                requirements = converter.check_system_requirements()
-
-                assert requirements["calibre"] is False
-                assert requirements["ebook-convert"] is False
-                assert requirements["kfx_plugin"] is False  # No converter available
-                assert (
-                    requirements["kindle_previewer"] is False
-                )  # No converter available
+            # With failed subprocess calls, tools should show as unavailable
+            assert requirements["calibre"] is False
+            assert requirements["ebook-convert"] is False
+            assert requirements["kfx_plugin"] is False
+            # KFX-specific requirements should also fail
+            assert requirements["kfx_plugin_advanced"] is False
+            assert requirements["kindle_previewer"] is False
+            assert requirements["library_access"] is False
         finally:
             Path(config_file.name).unlink()
 
@@ -400,8 +347,8 @@ class TestKFXConverterBookConversion:
 
         return Book(metadata=metadata, file_path=Path(temp_file.name))
 
-    def test_convert_books_without_converter(self):
-        """Test book conversion when ParallelKFXConverter is not available."""
+    def test_convert_books_with_valid_setup(self):
+        """Test book conversion with valid setup."""
         config_data = {"conversion": {"max_parallel": 2}}
         config_file = tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False)
         yaml.dump(config_data, config_file)
@@ -409,22 +356,19 @@ class TestKFXConverterBookConversion:
 
         try:
             config_manager = ConfigManager(Path(config_file.name))
+            converter = KFXConverter(config_manager)
 
-            # Initialize converter without ParallelKFXConverter
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter", side_effect=ImportError()
-            ):
-                converter = KFXConverter(config_manager)
+            # Create test book that actually exists
+            test_book = self.create_test_book()
+            try:
+                # Test dry run to avoid actual conversion
+                results = converter.convert_books_to_kfx([test_book], dry_run=True)
 
-                # Try to convert books
-                test_book = self.create_test_book()
-                try:
-                    with pytest.raises(
-                        RuntimeError, match="KFX converter not available"
-                    ):
-                        converter.convert_books_to_kfx([test_book])
-                finally:
-                    test_book.file_path.unlink()  # Clean up test file
+                assert len(results) == 1
+                assert results[0].success  # Dry run should succeed
+                assert results[0].output_format == BookFormat.KFX
+            finally:
+                test_book.file_path.unlink()  # Clean up test file
         finally:
             Path(config_file.name).unlink()
 
@@ -437,27 +381,19 @@ class TestKFXConverterBookConversion:
 
         try:
             config_manager = ConfigManager(Path(config_file.name))
+            converter = KFXConverter(config_manager)
 
-            mock_converter = Mock()
-            with patch(
-                "parallel_kfx_converter.ParallelKFXConverter",
-                return_value=mock_converter,
-            ):
-                converter = KFXConverter(config_manager)
+            # Create book with non-existent file
+            metadata = BookMetadata(
+                title="Missing Book", author="Test Author", format=BookFormat.EPUB
+            )
 
-                # Create book with non-existent file
-                metadata = BookMetadata(
-                    title="Missing Book", author="Test Author", format=BookFormat.EPUB
-                )
+            book = Book(metadata=metadata, file_path=Path("/non/existent/file.epub"))
 
-                book = Book(
-                    metadata=metadata, file_path=Path("/non/existent/file.epub")
-                )
+            results = converter.convert_books_to_kfx([book])
 
-                results = converter.convert_books_to_kfx([book])
-
-                assert len(results) == 1
-                assert not results[0].success
-                assert "Source file not found" in results[0].error
+            assert len(results) == 1
+            assert not results[0].success
+            assert "Source file not found" in results[0].error
         finally:
             Path(config_file.name).unlink()
