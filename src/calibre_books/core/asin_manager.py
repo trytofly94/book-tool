@@ -41,9 +41,11 @@ class ASINManager(LoggerMixin):
                 # Import the existing enhanced ASIN lookup service
                 import sys
 
-                # Add parent directory to path to import existing scripts
-                parent_dir = Path(__file__).parent.parent.parent
-                sys.path.insert(0, str(parent_dir))
+                # Add repository root to path to import existing scripts
+                # From: /repo/src/calibre_books/core/asin_manager.py
+                # To:   /repo/enhanced_asin_lookup.py (need to go up 4 levels)
+                repo_root = Path(__file__).parent.parent.parent.parent
+                sys.path.insert(0, str(repo_root))
 
                 from enhanced_asin_lookup import ASINLookupService
 

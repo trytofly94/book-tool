@@ -493,21 +493,24 @@ def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
         if not header:
             return None
 
-        # ZIP-based formats (EPUB, DOCX, etc.)
-        if header.startswith(b"PK\x03\x04"):
+        # ZIP-based formats (EPUB, DOCX, XLSX, PPTX) - CONSOLIDATED
+        # ZIP files can start with PK\x03\x04 (local file header) or PK\x05\x06 (empty archive)
+        if header.startswith(b"PK\x03\x04") or header.startswith(b"PK\x05\x06"):
             try:
                 with zipfile.ZipFile(file_path, "r") as zf:
                     namelist = zf.namelist()
 
                     # Check for EPUB first (has specific mimetype)
                     if "mimetype" in namelist:
-                        mimetype = zf.read("mimetype").decode("utf-8").strip()
-                        if mimetype == "application/epub+zip":
-                            return "epub"
+                        try:
+                            mimetype = zf.read("mimetype").decode("utf-8").strip()
+                            if mimetype == "application/epub+zip":
+                                return "epub"
+                        except (UnicodeDecodeError, KeyError):
+                            pass  # Continue checking other formats
 
                     # Check for Office Open XML formats
                     if "[Content_Types].xml" in namelist:
-                        # This is an Office document
                         namelist_str = str(namelist)
                         if "word/" in namelist_str:
                             return "docx"
@@ -518,7 +521,7 @@ def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
                         else:
                             return "office_document"
 
-                    # If it's a ZIP but not EPUB or Office, it's plain ZIP
+                    # If ZIP but neither EPUB nor Office: Plain ZIP
                     return "zip"
             except zipfile.BadZipFile:
                 return "corrupted_zip"
@@ -534,7 +537,7 @@ def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
         # Alternative MOBI/AZW detection for other signatures
         if b"TPZ3" in header[:100]:
             return "azw3"
-        elif b"TPZ" in header[:100]:
+        elif b"TPZ" in header[:100] and b"TPZ3" not in header[:100]:
             return "azw"
 
         # PDF files
@@ -744,7 +747,7 @@ def validate_mobi_header(file_path: Path) -> ValidationResult:
                 if b"TPZ3" in header[:100]:
                     result.format_detected = "azw3"
                     result.add_detail("mobi_type", "TPZ3")
-                elif b"TPZ" in header[:100]:
+                elif b"TPZ" in header[:100] and b"TPZ3" not in header[:100]:
                     result.format_detected = "azw"
                     result.add_detail("mobi_type", "TPZ")
                 else:

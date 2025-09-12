@@ -7,6 +7,7 @@ Tests the new Japanese, Portuguese, and Dutch language support with actual examp
 import os
 import sys
 import logging
+import argparse
 
 # Import our modules
 try:
@@ -15,6 +16,24 @@ except ImportError:
     sys.path.append(os.path.dirname(__file__))
     from localization_metadata_extractor import LocalizationMetadataExtractor
 
+# Import test helpers
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+try:
+    from calibre_books.utils.test_helpers import (
+        get_test_book_path,
+        add_book_path_argument,
+    )
+except ImportError:
+    # Error if new utils not available - no hardcoded fallbacks
+    print(
+        "ERROR: Test helpers not found. Please ensure calibre_books package is available."
+    )
+    print(
+        "ERROR: Run this script from the project root or ensure src/ is in PYTHONPATH"
+    )
+    sys.exit(1)
+
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -22,7 +41,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def test_new_language_support():
+def test_new_language_support(pipeline_dir=None):
     """Test real-world usage of new language support"""
     print("=" * 80)
     print("ISSUE #23 LANGUAGE SUPPORT VALIDATION")
@@ -133,7 +152,7 @@ def test_new_language_support():
                 for i, term in enumerate(search_terms[1:4], 2):
                     strategy = term.get("strategy", "unknown")
                     domain = term["amazon_domain"]
-                    print(f"  Fallback {i-1}: [{strategy}] → {domain}")
+                    print(f"  Fallback {i - 1}: [{strategy}] → {domain}")
 
             else:
                 print("✗ No search terms generated")
@@ -160,7 +179,7 @@ def test_new_language_support():
     print(f"Passed: {passed}")
     print(f"Failed: {failed}")
     print(f"Errors: {errors}")
-    print(f"Success rate: {(passed/len(results)*100):.1f}%")
+    print(f"Success rate: {(passed / len(results) * 100):.1f}%")
 
     print("\nDetailed Results:")
     for result in results:
@@ -172,7 +191,9 @@ def test_new_language_support():
     print("PIPELINE DIRECTORY TEST")
     print("=" * 80)
 
-    pipeline_dir = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+    if pipeline_dir is None:
+        # Use test helper to get default path (no fallback here)
+        pipeline_dir = str(get_test_book_path(validate_exists=False))
     if os.path.exists(pipeline_dir):
         print(f"Testing books in pipeline directory: {pipeline_dir}")
 
@@ -213,5 +234,43 @@ def test_new_language_support():
     return results
 
 
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Real-World Validation Test for Issue #23 - Language Support Expansion.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  # Use default book directory
+  python test_issue_23_language_validation.py
+
+  # Use custom book directory
+  python test_issue_23_language_validation.py --book-path /custom/path/to/books
+
+  # Use environment variable (either works)
+  export BOOK_PIPELINE_PATH=/custom/path/to/books
+  python test_issue_23_language_validation.py
+
+  # Or legacy environment variable
+  export CALIBRE_BOOKS_TEST_PATH=/custom/path/to/books
+  python test_issue_23_language_validation.py
+""",
+    )
+
+    add_book_path_argument(parser)
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    test_new_language_support()
+    # Parse command line arguments
+    args = parse_arguments()
+
+    # Get book directory path using the new resolution function
+    try:
+        pipeline_dir = str(get_test_book_path(cli_args=args))
+        print(f"Using book directory: {pipeline_dir}")
+        test_new_language_support(pipeline_dir)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Book directory resolution failed: {e}")
+        sys.exit(1)

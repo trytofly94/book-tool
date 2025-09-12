@@ -8,22 +8,31 @@ import os
 import sys
 import json
 import time
+import argparse
 
 # Add current directory to path for imports
 sys.path.insert(0, os.getcwd())
+# Add src directory to path for new utility imports
+sys.path.insert(0, os.path.join(os.getcwd(), "src"))
 
 try:
     from enhanced_asin_lookup import ASINLookupService
     from localization_metadata_extractor import LocalizationMetadataExtractor
+    from calibre_books.utils.test_helpers import (
+        get_test_book_path,
+        add_book_path_argument,
+    )
 except ImportError as e:
     print(f"Import error: {e}")
     sys.exit(1)
 
 
-def test_comprehensive_asin_lookup():
+def test_comprehensive_asin_lookup(test_dir=None):
     """Test ASIN lookup with all available Brandon Sanderson books"""
 
-    test_dir = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+    if test_dir is None:
+        test_dir = "/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline"
+
     if not os.path.exists(test_dir):
         print(f"Test directory not found: {test_dir}")
         return
@@ -55,9 +64,9 @@ def test_comprehensive_asin_lookup():
     }
 
     # Test metadata extraction for all books
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("PHASE 1: METADATA EXTRACTION TEST")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     for i, book_file in enumerate(book_files, 1):
         book_path = os.path.join(test_dir, book_file)
@@ -92,7 +101,7 @@ def test_comprehensive_asin_lookup():
 
                 results["detailed_results"].append(result)
             else:
-                print(f"  ✗ Failed to extract metadata")
+                print("  ✗ Failed to extract metadata")
                 results["detailed_results"].append(
                     {
                         "file": book_file,
@@ -108,9 +117,9 @@ def test_comprehensive_asin_lookup():
             )
 
     # Test ASIN lookup for a sample of German books
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("PHASE 2: ASIN LOOKUP TEST")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
     german_books = [r for r in results["detailed_results"] if r.get("is_german", False)]
     test_books = german_books[:3]  # Test first 3 German books
@@ -138,7 +147,7 @@ def test_comprehensive_asin_lookup():
                     print(f"  ✓ ASIN found: {asin}")
                 else:
                     book_result["asin_found"] = None
-                    print(f"  ✗ No valid ASIN found")
+                    print("  ✗ No valid ASIN found")
 
                 # Add small delay between requests
                 time.sleep(1)
@@ -148,11 +157,11 @@ def test_comprehensive_asin_lookup():
                 print(f"  ✗ ASIN lookup error: {e}")
 
     # Print final results
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print("FINAL REVIEW RESULTS")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
 
-    print(f"\n📊 SUMMARY STATISTICS:")
+    print("\n📊 SUMMARY STATISTICS:")
     print(f"  Total books processed: {results['total_books']}")
     print(f"  Metadata successfully extracted: {results['metadata_extracted']}")
     print(f"  German books identified: {results['german_books_identified']}")
@@ -166,12 +175,12 @@ def test_comprehensive_asin_lookup():
         results["asin_lookups_successful"] / max(results["asin_lookups_attempted"], 1)
     ) * 100
 
-    print(f"\n📈 SUCCESS RATES:")
+    print("\n📈 SUCCESS RATES:")
     print(f"  Metadata extraction: {success_rate_metadata:.1f}%")
     print(f"  ASIN lookup: {success_rate_asin:.1f}%")
 
     # Show German books identified
-    print(f"\n🇩🇪 GERMAN BOOKS IDENTIFIED:")
+    print("\n🇩🇪 GERMAN BOOKS IDENTIFIED:")
     german_count = 0
     for result in results["detailed_results"]:
         if result.get("is_german", False):
@@ -183,15 +192,49 @@ def test_comprehensive_asin_lookup():
     try:
         with open("/tmp/asin_cache.json", "r") as f:
             cache = json.load(f)
-        print(f"\n💾 CACHE STATUS:")
+        print("\n💾 CACHE STATUS:")
         print(f"  Cached ASINs: {len(cache)}")
         for key, asin in cache.items():
             print(f"    {asin}: {key}")
-    except:
-        print(f"\n💾 CACHE STATUS: No cache file found")
+    except Exception:
+        print("\n💾 CACHE STATUS: No cache file found")
 
     return results
 
 
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Comprehensive Review Testing Script for Issue #18/#19 - Tests ASIN lookup functionality with real Brandon Sanderson books.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  # Use default book directory
+  python test_comprehensive_review.py
+
+  # Use custom book directory
+  python test_comprehensive_review.py --book-path /custom/path/to/books
+
+  # Use environment variable
+  export CALIBRE_BOOKS_TEST_PATH=/custom/path/to/books
+  python test_comprehensive_review.py
+""",
+    )
+
+    add_book_path_argument(parser)
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    test_comprehensive_asin_lookup()
+    # Parse command line arguments
+    args = parse_arguments()
+
+    # Get book directory path using the new resolution function
+    try:
+        test_dir = str(get_test_book_path(cli_args=args))
+        print(f"Using book directory: {test_dir}")
+        test_comprehensive_asin_lookup(test_dir)
+    except (FileNotFoundError, ValueError) as e:
+        print(f"Book directory resolution failed: {e}")
+        sys.exit(1)

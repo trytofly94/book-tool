@@ -9,6 +9,7 @@ with actual Brandon Sanderson books from the book pipeline directory.
 import sys
 import logging
 import time
+import argparse
 from pathlib import Path
 from typing import List, Tuple
 from dataclasses import dataclass
@@ -18,6 +19,10 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from calibre_books.core.asin_lookup import ASINLookupService  # noqa: E402
 from calibre_books.core.book import Book, BookMetadata, BookFormat  # noqa: E402
+from calibre_books.utils.test_helpers import (  # noqa: E402
+    get_test_book_path,
+    add_book_path_argument,
+)
 
 
 @dataclass
@@ -317,16 +322,43 @@ def print_test_summary(results: List[TestResult]):
                 logger.info(f"  {result.book_file}: {result.error}")
 
 
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="Real-world ASIN lookup and availability check test script.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Example usage:
+  # Use default book directory
+  python test_real_availability_check.py
+
+  # Use custom book directory
+  python test_real_availability_check.py --book-path /custom/path/to/books
+
+  # Use environment variable
+  export CALIBRE_BOOKS_TEST_PATH=/custom/path/to/books
+  python test_real_availability_check.py
+""",
+    )
+
+    add_book_path_argument(parser)
+
+    return parser.parse_args()
+
+
 def main():
     """Main test function."""
+    # Parse command line arguments
+    args = parse_arguments()
+
     setup_logging()
     logger = logging.getLogger(__name__)
 
-    # Path to the book pipeline directory
-    books_dir = Path("/Volumes/SSD-MacMini/Temp/Calibre-Ingest/book-pipeline/")
-
-    if not books_dir.exists():
-        logger.error(f"Books directory not found: {books_dir}")
+    # Get book directory path using the new resolution function
+    try:
+        books_dir = get_test_book_path(cli_args=args)
+    except (FileNotFoundError, ValueError) as e:
+        logger.error(f"Book directory resolution failed: {e}")
         sys.exit(1)
 
     logger.info("Starting real-world ASIN lookup and availability check test")
