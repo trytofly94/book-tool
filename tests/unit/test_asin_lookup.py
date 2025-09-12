@@ -7,7 +7,7 @@ import threading
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from calibre_books.core.asin_lookup import ASINLookupService
+from calibre_books.core.asin_lookup import ASINLookupService, CacheManager
 from calibre_books.core.cache import SQLiteCacheManager
 from calibre_books.core.book import Book, BookMetadata, ASINLookupResult
 
@@ -44,7 +44,7 @@ class TestASINLookupService:
         assert service.config_manager == self.mock_config_manager
         assert service.sources == ["amazon", "goodreads", "openlibrary"]
         assert service.rate_limit == 0.1
-        assert isinstance(service.cache_manager, SQLiteCacheManager)
+        assert isinstance(service.cache_manager, CacheManager)
         assert len(service.user_agents) >= 3
 
     def test_validate_asin_format(self):
@@ -657,6 +657,9 @@ class TestSQLiteCacheManager:
 
             assert cache_manager.cache_path == cache_path
             assert cache_path.parent.exists()  # Directory should be created
+            # Verify cache is empty
+            stats = cache_manager.get_stats()
+            assert stats["total_entries"] == 0
 
             # Check that database is properly initialized
             stats = cache_manager.get_stats()
