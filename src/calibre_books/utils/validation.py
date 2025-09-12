@@ -535,7 +535,9 @@ def _detect_format_by_magic_bytes(file_path: Path) -> Optional[str]:
                 return "azw3"
 
         # Alternative MOBI/AZW detection for other signatures
-        if b"TPZ" in header[:100] and b"TPZ3" not in header[:100]:
+        if b"TPZ3" in header[:100]:
+            return "azw3"
+        elif b"TPZ" in header[:100] and b"TPZ3" not in header[:100]:
             return "azw"
 
         # PDF files
@@ -742,7 +744,10 @@ def validate_mobi_header(file_path: Path) -> ValidationResult:
                 result.add_detail("mobi_type", "TPZ3")
             else:
                 # Check for other Kindle signatures
-                if b"TPZ" in header[:100] and b"TPZ3" not in header[:100]:
+                if b"TPZ3" in header[:100]:
+                    result.format_detected = "azw3"
+                    result.add_detail("mobi_type", "TPZ3")
+                elif b"TPZ" in header[:100] and b"TPZ3" not in header[:100]:
                     result.format_detected = "azw"
                     result.add_detail("mobi_type", "TPZ")
                 else:
