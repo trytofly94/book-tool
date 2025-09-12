@@ -72,6 +72,22 @@ class SQLiteCacheManager:
             # Ensure cache directory exists
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
 
+            # Check if file exists and is not a valid SQLite database
+            if self.cache_path.exists():
+                try:
+                    # Try to open the existing file as SQLite
+                    test_conn = sqlite3.connect(str(self.cache_path))
+                    test_conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table';"
+                    )
+                    test_conn.close()
+                except sqlite3.DatabaseError:
+                    # File exists but is not a valid SQLite database
+                    self.logger.warning(
+                        f"Existing cache file {self.cache_path} is not a valid SQLite database, removing"
+                    )
+                    self.cache_path.unlink()
+
             # Create connection with performance optimizations
             conn = sqlite3.connect(
                 str(self.cache_path),

@@ -324,8 +324,9 @@ class TestASINLookupIssue18Integration:
                 assert result.asin == "B00FALLBK1"
                 assert result.source == "google-books"
 
-                # All methods should have been tried
-                mock_amazon.assert_called_once()
+                # All methods should have been tried - with Issue #55 enhancements,
+                # Amazon search is now called multiple times for author variations
+                assert mock_amazon.call_count > 0
                 mock_google.assert_called_once()
                 # OpenLibrary might or might not be called depending on source mapping
 
@@ -422,6 +423,7 @@ class TestIssue18PerformanceAndReliability:
                 assert result.asin == "B00RESIL12"
                 assert result.source == "google-books"
 
-                # Both methods should have been attempted
-                mock_amazon.assert_called_once()
+                # Both methods should have been attempted - with Issue #55 enhancements,
+                # Amazon search is now called multiple times for author variations
+                assert mock_amazon.call_count > 0
                 mock_google.assert_called_once()

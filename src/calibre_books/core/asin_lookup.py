@@ -4,6 +4,9 @@ ASIN lookup service for Calibre Books CLI.
 This module provides functionality for looking up Amazon ASINs
 from various sources including Amazon, Goodreads, and OpenLibrary.
 
+Enhanced with improved series handling, fuzzy matching, and additional search strategies
+as part of Issue #55 improvements.
+
 Integrates the enhanced_asin_lookup.py functionality into the new CLI architecture.
 """
 
@@ -16,6 +19,19 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any, TYPE_CHECKING
 import concurrent.futures
 from bs4 import BeautifulSoup
+
+# For fuzzy matching functionality
+try:
+    from fuzzywuzzy import fuzz
+
+    FUZZY_AVAILABLE = True
+except ImportError:
+    try:
+        from difflib import SequenceMatcher
+
+        FUZZY_AVAILABLE = True
+    except ImportError:
+        FUZZY_AVAILABLE = False
 
 from ..utils.logging import LoggerMixin
 from .book import Book, ASINLookupResult
@@ -45,9 +61,13 @@ class ASINLookupService(LoggerMixin):
         # Get ASIN lookup specific configuration with error handling
         try:
             asin_config = config_manager.get_asin_config()
-            self.cache_path = Path(
-                asin_config.get("cache_path", "~/.book-tool/asin_cache.json")
-            ).expanduser()
+            cache_path_config = asin_config.get(
+                "cache_path", "~/.book-tool/asin_cache.db"
+            )
+            # Ensure SQLite cache uses .db extension
+            if cache_path_config.endswith(".json"):
+                cache_path_config = cache_path_config.replace(".json", ".db")
+            self.cache_path = Path(cache_path_config).expanduser()
             self.sources = asin_config.get(
                 "sources", ["amazon", "goodreads", "openlibrary"]
             )
@@ -58,7 +78,7 @@ class ASINLookupService(LoggerMixin):
             )
         except Exception as e:
             self.logger.warning(f"Failed to load ASIN config, using defaults: {e}")
-            self.cache_path = Path("~/.book-tool/asin_cache.json").expanduser()
+            self.cache_path = Path("~/.book-tool/asin_cache.db").expanduser()
             self.sources = ["amazon", "goodreads", "openlibrary"]
             self.rate_limit = 2.0
 
@@ -66,8 +86,10 @@ class ASINLookupService(LoggerMixin):
             f"Initialized ASIN lookup service with sources: {self.sources}"
         )
 
-        # Initialize cache manager
-        self.cache_manager = CacheManager(self.cache_path)
+        # Initialize cache manager with SQLite backend
+        from .cache import SQLiteCacheManager
+
+        self.cache_manager = SQLiteCacheManager(self.cache_path)
 
         # User agents for web scraping - updated for 2025
         self.user_agents = [
@@ -80,6 +102,232 @@ class ASINLookupService(LoggerMixin):
 
         # Thread lock for cache operations
         self._cache_lock = threading.Lock()
+
+        # Enhanced search settings (Issue #55)
+        self.fuzzy_threshold = 80  # Minimum similarity score (0-100)
+        self.enable_series_variations = True
+        self.enable_fuzzy_matching = FUZZY_AVAILABLE
+
+        # Known series patterns for Brandon Sanderson and other popular authors
+        self.series_patterns = {
+            "mistborn": [
+                "Mistborn: The Final Empire",
+                "The Final Empire",
+                "Mistborn 1",
+            ],
+            "stormlight": [
+                "The Way of Kings",
+                "Words of Radiance",
+                "Oathbringer",
+                "Rhythm of War",
+                "Knights of Wind and Truth",
+            ],
+            "elantris": [
+                "Elantris: Tenth Anniversary",
+                "Elantris: Author's Definitive Edition",
+            ],
+            "warbreaker": ["Warbreaker"],
+            "skyward": ["Skyward", "Starsight", "Cytonic", "Defiant"],
+            "wax and wayne": [
+                "The Alloy of Law",
+                "Shadows of Self",
+                "The Bands of Mourning",
+                "The Lost Metal",
+            ],
+        }
+
+        # Common title variations and normalization patterns
+        self.title_variations = {
+            "articles": ["the", "a", "an"],
+            "separators": [":", " - ", " – ", " — "],
+            "series_indicators": [
+                "book 1",
+                "book one",
+                "volume 1",
+                "volume one",
+                "#1",
+                "part 1",
+                "part one",
+            ],
+            "edition_indicators": [
+                "anniversary",
+                "definitive",
+                "special",
+                "limited",
+                "collector's",
+            ],
+        }
+
+    def _generate_title_variations(
+        self, title: str, author: Optional[str] = None
+    ) -> List[str]:
+        """
+        Generate multiple title variations for improved search success rate.
+
+        Args:
+            title: Original book title
+            author: Book author (used for series context)
+
+        Returns:
+            List of title variations to try
+        """
+        variations = [title]  # Start with original title
+
+        if not self.enable_series_variations:
+            return variations
+
+        title_lower = title.lower().strip()
+
+        # 1. Remove common articles from the beginning
+        for article in self.title_variations["articles"]:
+            if title_lower.startswith(f"{article} "):
+                no_article = title[len(article) :].strip()
+                variations.append(no_article)
+                # Also add back with "The" if original didn't have it
+                if article != "the":
+                    variations.append(f"The {no_article}")
+
+        # 2. Add series context for known patterns
+        if author and "sanderson" in author.lower():
+            for series_key, series_titles in self.series_patterns.items():
+                # Check if current title matches any known series title
+                for series_title in series_titles:
+                    if self._fuzzy_match(title, series_title, threshold=70):
+                        # Add all variations from this series
+                        variations.extend(series_titles)
+                        break
+
+                # Check if title contains series keywords
+                if series_key.replace(" ", "").lower() in title_lower.replace(" ", ""):
+                    variations.extend(series_titles)
+
+        # 3. Handle common title formats and separators
+        for separator in self.title_variations["separators"]:
+            if separator in title:
+                # Split on separator and try variations
+                parts = title.split(separator, 1)
+                if len(parts) == 2:
+                    main_title, subtitle = parts[0].strip(), parts[1].strip()
+                    variations.extend(
+                        [
+                            main_title,  # Just the main part
+                            subtitle,  # Just the subtitle
+                            f"{main_title} {subtitle}",  # Space-separated
+                            f"{subtitle} ({main_title})",  # Reversed with parentheses
+                        ]
+                    )
+
+        # 4. Remove series indicators
+        for indicator in self.title_variations["series_indicators"]:
+            if indicator in title_lower:
+                clean_title = re.sub(
+                    re.escape(indicator), "", title, flags=re.IGNORECASE
+                ).strip()
+                clean_title = re.sub(
+                    r"\s+", " ", clean_title
+                )  # Clean up multiple spaces
+                if clean_title and clean_title not in variations:
+                    variations.append(clean_title)
+
+        # 5. Remove edition indicators
+        for indicator in self.title_variations["edition_indicators"]:
+            if indicator in title_lower:
+                clean_title = re.sub(
+                    f"\\b{re.escape(indicator)}\\b.*", "", title, flags=re.IGNORECASE
+                ).strip()
+                clean_title = re.sub(
+                    r"\s+", " ", clean_title
+                )  # Clean up multiple spaces
+                if clean_title and clean_title not in variations:
+                    variations.append(clean_title)
+
+        # 6. Remove parenthetical information
+        paren_removed = re.sub(r"\([^)]*\)", "", title).strip()
+        paren_removed = re.sub(r"\s+", " ", paren_removed)
+        if paren_removed and paren_removed not in variations:
+            variations.append(paren_removed)
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_variations = []
+        for variation in variations:
+            variation_clean = variation.strip()
+            if variation_clean and variation_clean not in seen:
+                seen.add(variation_clean)
+                unique_variations.append(variation_clean)
+
+        return unique_variations
+
+    def _fuzzy_match(self, text1: str, text2: str, threshold: int = 80) -> bool:
+        """
+        Check if two strings are similar using fuzzy matching.
+
+        Args:
+            text1: First string
+            text2: Second string
+            threshold: Minimum similarity score (0-100)
+
+        Returns:
+            True if strings are similar enough
+        """
+        if not self.enable_fuzzy_matching:
+            return text1.lower().strip() == text2.lower().strip()
+
+        try:
+            if FUZZY_AVAILABLE and "fuzz" in globals():
+                # Use fuzzywuzzy if available
+                similarity = fuzz.ratio(text1.lower().strip(), text2.lower().strip())
+            else:
+                # Fallback to difflib SequenceMatcher
+                matcher = SequenceMatcher(
+                    None, text1.lower().strip(), text2.lower().strip()
+                )
+                similarity = matcher.ratio() * 100
+
+            return similarity >= threshold
+        except Exception:
+            # If fuzzy matching fails, fall back to exact match
+            return text1.lower().strip() == text2.lower().strip()
+
+    def _normalize_author_name(self, author: str) -> List[str]:
+        """
+        Generate variations of author names for better matching.
+
+        Args:
+            author: Original author name
+
+        Returns:
+            List of author name variations
+        """
+        variations = [author]
+
+        # Common author name patterns
+        # "Brandon Sanderson" -> ["Brandon Sanderson", "B. Sanderson", "Sanderson", "Sanderson, Brandon"]
+
+        if " " in author:
+            parts = author.split()
+            if len(parts) == 2:
+                first, last = parts
+                variations.extend(
+                    [
+                        f"{first[0]}. {last}",  # B. Sanderson
+                        last,  # Sanderson
+                        f"{last}, {first}",  # Sanderson, Brandon
+                    ]
+                )
+            elif len(parts) > 2:
+                # Handle middle names/initials
+                first = parts[0]
+                last = parts[-1]
+                variations.extend(
+                    [
+                        f"{first} {last}",  # Brandon Sanderson (remove middle)
+                        f"{first[0]}. {last}",  # B. Sanderson
+                        last,  # Sanderson
+                    ]
+                )
+
+        return list(set(variations))  # Remove duplicates
 
     def lookup_by_title(
         self,
@@ -111,7 +359,20 @@ class ASINLookupService(LoggerMixin):
         if progress_callback:
             progress_callback(description="Starting ASIN lookup...")
 
-        # Create cache key
+        # Generate title variations for enhanced search (Issue #55)
+        title_variations = self._generate_title_variations(title, author)
+        author_variations = self._normalize_author_name(author) if author else [None]
+
+        if verbose:
+            self.logger.info(
+                f"Generated {len(title_variations)} title variations: {title_variations}"
+            )
+            if author:
+                self.logger.info(
+                    f"Generated {len(author_variations)} author variations: {author_variations}"
+                )
+
+        # Create cache key using original title/author
         cache_key = f"{title}_{author or ''}".lower().strip()
 
         # Check cache first if enabled
@@ -143,18 +404,20 @@ class ASINLookupService(LoggerMixin):
             "openlibrary": "openlibrary",
         }
 
-        lookup_methods = [
-            (
-                "amazon-search",
-                lambda: self._lookup_via_amazon_search(title, author, verbose),
-            ),
+        # Define lookup methods with enhanced variation support (Issue #55)
+        lookup_method_definitions = [
+            ("amazon-search", self._lookup_via_amazon_search),
             (
                 "google-books",
-                lambda: self._lookup_via_google_books(None, title, author, verbose),
+                lambda isbn, title, author, verbose: self._lookup_via_google_books(
+                    isbn, title, author, verbose
+                ),
             ),
             (
                 "openlibrary",
-                lambda: self._lookup_via_openlibrary(None, title, author, verbose),
+                lambda isbn, title, author, verbose: self._lookup_via_openlibrary(
+                    isbn, title, author, verbose
+                ),
             ),
         ]
 
@@ -162,7 +425,8 @@ class ASINLookupService(LoggerMixin):
         source_errors = {}
         methods_attempted = []
 
-        for method_name, method in lookup_methods:
+        # Enhanced lookup with title and author variations
+        for method_name, method_func in lookup_method_definitions:
             # Skip if source not in requested sources using proper mapping
             method_should_run = False
             for requested_source in search_sources:
@@ -188,20 +452,78 @@ class ASINLookupService(LoggerMixin):
                         f"ASIN lookup: Starting {method_name} for '{title}' by {author or 'unknown author'}"
                     )
 
-                asin = method()
+                asin_found = None
+                variation_used = None
 
-                if asin and self.validate_asin(asin):
-                    self.logger.info(f"ASIN found via {method_name}: {asin}")
+                # Performance optimization: Try original title/author first, then variations
+                title_author_combinations = []
 
-                    # Cache the result
+                # Always try original combination first
+                title_author_combinations.append((title, author))
+
+                # Then add variations (skip if original already in list)
+                for title_var in title_variations:
+                    for author_var in author_variations:
+                        combo = (title_var, author_var)
+                        if combo not in title_author_combinations:
+                            title_author_combinations.append(combo)
+
+                # Try each title/author combination
+                for title_var, author_var in title_author_combinations:
+                    try:
+                        # Log variation attempts (but not the original)
+                        if verbose and (title_var != title or author_var != author):
+                            self.logger.info(
+                                f"ASIN lookup: Trying {method_name} variation - Title: '{title_var}', Author: '{author_var}'"
+                            )
+
+                        # Call the appropriate method based on method name
+                        if method_name == "amazon-search":
+                            asin_found = method_func(title_var, author_var, verbose)
+                        else:
+                            asin_found = method_func(
+                                None, title_var, author_var, verbose
+                            )
+
+                        if asin_found and self.validate_asin(asin_found):
+                            # Only mark as variation if it's not the original
+                            if title_var != title or author_var != author:
+                                variation_used = (
+                                    f"Title: '{title_var}', Author: '{author_var}'"
+                                )
+                            break
+
+                    except Exception as var_e:
+                        if verbose:
+                            self.logger.debug(
+                                f"Variation failed for {method_name}: {var_e}"
+                            )
+                        continue
+
+                    if asin_found:
+                        break
+
+                if asin_found and self.validate_asin(asin_found):
+                    if variation_used and verbose:
+                        self.logger.info(
+                            f"ASIN found via {method_name} using variation: {variation_used}"
+                        )
+                    else:
+                        self.logger.info(f"ASIN found via {method_name}: {asin_found}")
+
+                    # Cache the result using original title/author key
                     if use_cache:
-                        self.cache_manager.cache_asin(cache_key, asin)
+                        self.cache_manager.cache_asin(cache_key, asin_found)
 
                     return ASINLookupResult(
                         query_title=title,
                         query_author=author,
-                        asin=asin,
-                        metadata=None,
+                        asin=asin_found,
+                        metadata=(
+                            {"variation_used": variation_used}
+                            if variation_used
+                            else None
+                        ),
                         source=method_name,
                         success=True,
                         lookup_time=time.time() - start_time,
@@ -209,15 +531,17 @@ class ASINLookupService(LoggerMixin):
                     )
                 else:
                     if verbose:
-                        if asin:
+                        if asin_found:
                             self.logger.info(
-                                f"ASIN lookup: {method_name} returned invalid ASIN: {asin}"
+                                f"ASIN lookup: {method_name} returned invalid ASIN: {asin_found}"
                             )
                         else:
                             self.logger.info(
-                                f"ASIN lookup: {method_name} returned no results"
+                                f"ASIN lookup: {method_name} returned no results across {len(title_variations)} title variations"
                             )
-                    source_errors[method_name] = "No valid ASIN found"
+                    source_errors[method_name] = (
+                        f"No valid ASIN found across {len(title_variations)} title variations"
+                    )
 
                 # Rate limiting between attempts
                 time.sleep(self.rate_limit)
@@ -1408,95 +1732,39 @@ class ASINLookupService(LoggerMixin):
         self.logger.debug("OpenLibrary: No ASIN found")
         return None
 
+    def close(self):
+        """
+        Close ASIN lookup service and cleanup resources.
 
-class CacheManager:
-    """Manages ASIN lookup cache."""
+        This method performs proper cleanup of all resources used by the service,
+        including cache manager connections and thread locks. It is safe to call
+        multiple times (idempotent).
+        """
+        if hasattr(self, "_closed") and self._closed:
+            # Already closed, nothing to do
+            self.logger.debug("ASINLookupService already closed")
+            return
 
-    def __init__(self, cache_path: Path):
-        self.cache_path = cache_path
-        self.cache_data = {}
-        self._cache_lock = threading.Lock()
-        self._load_cache()
+        self.logger.debug("Closing ASIN lookup service...")
 
-    def _load_cache(self):
-        """Load cache from file."""
-        if self.cache_path.exists():
-            try:
-                with open(self.cache_path, "r") as f:
-                    self.cache_data = json.load(f)
-            except Exception:
-                self.cache_data = {}
-        else:
-            self.cache_data = {}
-            # Ensure cache directory exists
-            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-
-    def _save_cache(self):
-        """Save cache to file."""
         try:
-            with open(self.cache_path, "w") as f:
-                json.dump(self.cache_data, f, indent=2)
-        except Exception:
-            pass  # Ignore cache save errors
+            # Close cache manager if it has a close method
+            if hasattr(self.cache_manager, "close"):
+                self.logger.debug("Closing cache manager...")
+                self.cache_manager.close()
 
-    def get_cached_asin(self, cache_key: str) -> Optional[str]:
-        """Get cached ASIN for key."""
-        with self._cache_lock:
-            return self.cache_data.get(cache_key)
+            # Clear thread lock reference (GC will handle the cleanup)
+            if hasattr(self, "_cache_lock"):
+                # We don't explicitly "close" a Lock object, just clear the reference
+                # The threading.Lock will be garbage collected automatically
+                self._cache_lock = None
+                self.logger.debug("Cleared cache lock reference")
 
-    def cache_asin(self, cache_key: str, asin: str):
-        """Cache an ASIN."""
-        with self._cache_lock:
-            self.cache_data[cache_key] = asin
-            self._save_cache()
+            # Mark as closed to prevent double cleanup
+            self._closed = True
+            self.logger.info("ASIN lookup service closed successfully")
 
-    def get_stats(self):
-        """Get cache statistics."""
-        from dataclasses import dataclass
-        from datetime import datetime
-
-        @dataclass
-        class Stats:
-            total_entries: int = 0
-            hit_rate: float = 0.0
-            size_human: str = "0 B"
-            last_updated: datetime = datetime.now()
-
-        with self._cache_lock:
-            total_entries = len(self.cache_data)
-
-            # Calculate cache file size
-            if self.cache_path.exists():
-                size_bytes = self.cache_path.stat().st_size
-                last_updated = datetime.fromtimestamp(self.cache_path.stat().st_mtime)
-            else:
-                size_bytes = 0
-                last_updated = datetime.now()
-
-            # Human readable size
-            for unit in ["B", "KB", "MB", "GB"]:
-                if size_bytes < 1024.0:
-                    size_human = f"{size_bytes:.1f} {unit}"
-                    break
-                size_bytes /= 1024.0
-            else:
-                size_human = f"{size_bytes:.1f} TB"
-
-        return Stats(
-            total_entries=total_entries,
-            hit_rate=0.0,  # Would need to track hits/misses for real calculation
-            size_human=size_human,
-            last_updated=last_updated,
-        )
-
-    def clear(self):
-        """Clear all cached entries."""
-        with self._cache_lock:
-            self.cache_data = {}
-            self._save_cache()
-
-    def cleanup_expired(self) -> int:
-        """Remove expired cache entries."""
-        # For now, we don't implement expiration
-        # Could be added later with timestamp tracking
-        return 0
+        except Exception as e:
+            self.logger.error(f"Error during ASIN lookup service cleanup: {e}")
+            # Still mark as closed even if there were errors
+            self._closed = True

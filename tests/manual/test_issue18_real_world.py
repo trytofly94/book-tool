@@ -12,17 +12,18 @@ WARNING: This makes actual network requests and may be rate-limited.
 Use sparingly and respectfully.
 """
 
+# Add src to path for imports first
 import sys
-import time
-import tempfile
-import argparse
 from pathlib import Path
-from unittest.mock import Mock
 
-# Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from calibre_books.core.asin_lookup import ASINLookupService
+import time  # noqa: E402
+import tempfile  # noqa: E402
+import argparse  # noqa: E402
+from unittest.mock import Mock  # noqa: E402
+
+from calibre_books.core.asin_lookup import ASINLookupService  # noqa: E402
 
 
 def create_test_service():
@@ -97,7 +98,11 @@ def test_issue18_examples(verbose=False):
             print("  Waiting 3 seconds before next request...")
             time.sleep(3)
 
-    return results
+    # Assert that at least some tests succeeded
+    successful_tests = sum(1 for _, _, success, _, _ in results if success)
+    assert (
+        successful_tests > 0
+    ), f"No successful lookups found out of {len(results)} tests"
 
 
 def test_error_cases(verbose=False):
@@ -152,7 +157,13 @@ def test_error_cases(verbose=False):
         if i < len(error_cases):
             time.sleep(2)
 
-    return results
+    # Assert that error handling worked correctly
+    expected_failures = sum(
+        1 for _, _, result, _ in results if result == "expected_failure"
+    )
+    assert (
+        expected_failures > 0
+    ), f"No expected failures found out of {len(results)} error tests"
 
 
 def test_asin_validation():
@@ -186,7 +197,7 @@ def test_asin_validation():
             print(f"✗ '{asin}' -> {actual} (expected {expected})")
             all_passed = False
 
-    return all_passed
+    assert all_passed, "Some ASIN validation tests failed"
 
 
 def main():
