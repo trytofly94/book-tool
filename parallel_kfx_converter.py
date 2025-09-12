@@ -93,12 +93,82 @@ class ParallelKFXConverter:
 
         return False
 
+    def validate_kfx_plugin(self):
+        """
+        Validate that KFX Output plugin is available in Calibre.
+
+        This method provides the same interface expected by the test suite,
+        delegating to the existing check_kfx_plugin method.
+
+        Returns:
+            bool: True if KFX Output plugin is available, False otherwise
+        """
+        import re
+
+        try:
+            # Run calibre-customize to list plugins
+            result = subprocess.run(
+                ["calibre-customize", "-l"], capture_output=True, text=True, timeout=10
+            )
+
+            if result.returncode != 0:
+                return False
+
+            # Check for KFX Output plugin with case insensitive search
+            kfx_pattern = r"KFX Output.*Convert ebooks to KFX format"
+            if re.search(kfx_pattern, result.stdout, re.IGNORECASE):
+                return True
+            else:
+                return False
+
+        except subprocess.TimeoutExpired:
+            return False
+        except FileNotFoundError:
+            return False
+        except Exception:
+            return False
+
+    def _check_calibre(self):
+        """
+        Check if Calibre CLI tools are available.
+
+        This is a private method that checks the availability of core Calibre tools
+        needed for KFX conversion operations.
+
+        Returns:
+            bool: True if Calibre CLI tools are available, False otherwise
+        """
+        try:
+            # Check calibre command
+            result = subprocess.run(
+                ["calibre", "--version"], check=True, capture_output=True, timeout=10
+            )
+            if result.returncode != 0:
+                return False
+
+            # Check ebook-convert command
+            result = subprocess.run(
+                ["ebook-convert", "--version"],
+                check=True,
+                capture_output=True,
+                timeout=10,
+            )
+            return result.returncode == 0
+
+        except (
+            subprocess.CalledProcessError,
+            FileNotFoundError,
+            subprocess.TimeoutExpired,
+        ):
+            return False
+
     def check_kindle_previewer(self):
         """Prüft ob Kindle Previewer 3 installiert ist"""
         previewer_paths = [
             "/Applications/Kindle Previewer 3.app",  # macOS
             "/usr/local/bin/kindle-previewer",  # Linux
-            "C:\\Program Files (x86)\\Amazon\\Kindle Previewer 3\\Kindle Previewer.exe",  # Windows
+            "C:\\Program Files (x86)\\Amazon\\Kindle Previewer 3\\"
+            "Kindle Previewer.exe",  # Windows
         ]
 
         return any(os.path.exists(path) for path in previewer_paths)
@@ -313,19 +383,18 @@ class ParallelKFXConverter:
         successful = [r for r in results if r["success"]]
         failed = [r for r in results if not r["success"]]
 
-        print(f"\n=== Konvertierungs-Zusammenfassung ===")
+        print("\n=== Konvertierungs-Zusammenfassung ===")
         print(f"Erfolgreich: {len(successful)}")
         print(f"Fehlgeschlagen: {len(failed)}")
-        print(
-            f"Gesamt-Ausgabe-Größe: {sum(r['file_size'] for r in successful) / 1024 / 1024:.1f} MB"
-        )
+        total_size = sum(r["file_size"] for r in successful) / 1024 / 1024
+        print(f"Gesamt-Ausgabe-Größe: {total_size:.1f} MB")
 
         if failed:
-            print(f"\nFehlgeschlagene Konvertierungen:")
+            print("\nFehlgeschlagene Konvertierungen:")
             for fail in failed:
-                print(
-                    f"  ✗ {os.path.basename(fail['input_path'])}: {fail['error'][:100]}..."
-                )
+                filename = os.path.basename(fail["input_path"])
+                error_msg = fail["error"][:100]
+                print(f"  ✗ {filename}: {error_msg}...")
 
         return results
 
@@ -493,10 +562,10 @@ def main():
             converter.install_kfx_plugin()
 
         elif choice == "3":
-            results = converter.parallel_batch_convert(input_dir, dry_run=True)
+            converter.parallel_batch_convert(input_dir, dry_run=True)
 
         elif choice == "4":
-            max_workers = input(f"Anzahl parallele Worker (default: 4): ").strip()
+            max_workers = input("Anzahl parallele Worker (default: 4): ").strip()
             if max_workers:
                 converter.max_workers = int(max_workers)
 
@@ -514,7 +583,7 @@ def main():
             if converter.library_path:
                 limit = input("Limit (leer für alle): ").strip()
                 limit = int(limit) if limit else None
-                max_workers = input(f"Anzahl parallele Worker (default: 4): ").strip()
+                max_workers = input("Anzahl parallele Worker (default: 4): ").strip()
                 if max_workers:
                     converter.max_workers = int(max_workers)
 
